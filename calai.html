@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CalAI</title>
+<style>
+:root {
+  --bg: #0d0d12;
+  --s1: #16161f;
+  --s2: #1e1e2a;
+  --s3: #272736;
+  --border: #2a2a3a;
+  --accent: #7c6dfa;
+  --accent-glow: rgba(124,109,250,0.18);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.15);
+  --orange: #fb923c;
+  --blue: #60a5fa;
+  --red: #f87171;
+  --text: #ededf5;
+  --text2: #8888a8;
+  --text3: #55556a;
+  --r: 14px;
+  --r-sm: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;display:flex;flex-direction:column}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* LAYOUT */
+#app{flex:1;overflow:hidden;display:flex;flex-direction:column}
+#view{flex:1;overflow-y:auto;padding:16px 16px 0}
+#nav{flex-shrink:0;background:var(--s1);border-top:1px solid var(--border);display:flex;padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:10}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;transition:color .2s;color:var(--text3);background:none;border:none;font-family:inherit}
+.nav-btn.active{color:var(--accent)}
+.nav-btn svg{width:22px;height:22px}
+.nav-btn span{font-size:10px;font-weight:500;letter-spacing:.3px}
+
+/* HEADER */
+.view-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-top:4px}
+.view-header h1{font-size:22px;font-weight:700;letter-spacing:-.3px}
+.view-header .sub{font-size:13px;color:var(--text2);margin-top:2px}
+
+/* CARDS */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.card+.card{margin-top:12px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:var(--r-sm);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.15)}
+.btn-ghost{background:var(--s3);color:var(--text)}
+.btn-ghost:hover{background:var(--border)}
+.btn-danger{background:rgba(248,113,113,.15);color:var(--red)}
+.btn-sm{padding:6px 12px;font-size:13px;border-radius:6px}
+.btn-icon{width:36px;height:36px;padding:0;border-radius:50%;background:var(--s3)}
+.btn-full{width:100%}
+.icon-btn{background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{color:var(--text);background:var(--s3)}
+
+/* FAB */
+#fab{position:fixed;bottom:calc(72px + env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(124,109,250,.4);transition:transform .15s,box-shadow .15s;z-index:20}
+#fab:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(124,109,250,.5)}
+#fab svg{width:24px;height:24px;color:#fff}
+
+/* MODAL */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+#overlay.open{display:flex}
+.modal{background:var(--s1);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-header h2{font-size:17px;font-weight:700}
+.modal-body{overflow-y:auto;flex:1;padding:16px 20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0}
+.drag-handle{width:36px;height:4px;background:var(--border);border-radius:4px;margin:10px auto 0}
+
+/* TABS */
+.tabs{display:flex;background:var(--s2);border-radius:var(--r-sm);padding:3px;gap:2px;margin-bottom:16px}
+.tab{flex:1;padding:7px;text-align:center;font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none;font-family:inherit;transition:all .15s}
+.tab.active{background:var(--s3);color:var(--text)}
+
+/* INPUTS */
+.input{width:100%;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
+.input:focus{border-color:var(--accent)}
+.input::placeholder{color:var(--text3)}
+textarea.input{resize:none;line-height:1.5}
+.input-row{display:flex;gap:8px;align-items:center}
+.label{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+
+/* FOOD LIST ITEMS */
+.food-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.food-item:last-child{border-bottom:none}
+.food-icon{width:36px;height:36px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.food-name{font-size:14px;font-weight:600;flex:1;min-width:0}
+.food-meta{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.food-cal{font-size:15px;font-weight:700;color:var(--accent);flex-shrink:0}
+.food-macros{display:flex;gap:10px;font-size:11px;color:var(--text2)}
+.food-macros span{white-space:nowrap}
+.macro-p{color:#60a5fa}
+.macro-c{color:#fbbf24}
+.macro-f{color:#f87171}
+
+/* CALORIE RING */
+.ring-wrap{display:flex;justify-content:center;margin:8px 0 16px}
+.ring-svg{transform:rotate(-90deg)}
+.ring-track{fill:none;stroke:var(--s3)}
+.ring-fill{fill:none;stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring-center{text-anchor:middle;dominant-baseline:middle}
+.ring-cal{font-size:26px;font-weight:800;fill:var(--text)}
+.ring-label{font-size:12px;fill:var(--text2)}
+
+/* MACRO BARS */
+.macro-bar-wrap{margin-bottom:10px}
+.macro-bar-header{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.macro-bar-label{font-weight:600}
+.macro-bar-val{color:var(--text2)}
+.macro-bar-track{height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.macro-bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+
+/* MEAL SECTIONS */
+.meal-section{margin-bottom:12px}
+.meal-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.meal-section-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.meal-section-cal{font-size:12px;color:var(--text2)}
+
+/* MEAL PREP CARD */
+.prep-card{background:var(--s2);border-radius:var(--r);padding:14px;border:1px solid var(--border);cursor:pointer;transition:border-color .15s}
+.prep-card:hover{border-color:var(--accent)}
+.prep-card-name{font-size:15px;font-weight:700;margin-bottom:4px}
+.prep-card-meta{font-size:12px;color:var(--text2)}
+.prep-card-cals{font-size:18px;font-weight:800;color:var(--accent);margin:6px 0 4px}
+
+/* HISTORY */
+.history-day{background:var(--s2);border-radius:var(--r);padding:14px 16px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:border-color .15s}
+.history-day:hover{border-color:var(--accent)}
+.history-day-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.history-day-date{font-size:14px;font-weight:700}
+.history-day-cal{font-size:16px;font-weight:800;color:var(--accent)}
+
+/* SETTINGS */
+.setting-row{padding:14px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:14px;font-weight:600}
+.setting-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.badge-green{background:var(--green-dim);color:var(--green)}
+.badge-red{background:rgba(248,113,113,.15);color:var(--red)}
+
+/* CHAT */
+.chat-messages{min-height:80px;max-height:200px;overflow-y:auto;margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{padding:8px 12px;border-radius:var(--r-sm);font-size:13px;line-height:1.5;max-width:90%}
+.chat-msg.user{background:var(--accent);color:#fff;align-self:flex-end}
+.chat-msg.ai{background:var(--s3);align-self:flex-start}
+.chat-msg.ai.thinking{color:var(--text2);font-style:italic}
+
+/* SEARCH RESULTS */
+.search-result{padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:border-color .15s;margin-bottom:6px}
+.search-result:hover{border-color:var(--accent)}
+.search-result-name{font-size:14px;font-weight:600;margin-bottom:2px}
+.search-result-meta{font-size:12px;color:var(--text2)}
+
+/* PHOTO ZONE */
+.photo-zone{border:2px dashed var(--border);border-radius:var(--r);padding:32px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.photo-zone:hover,.photo-zone.drag{border-color:var(--accent);background:var(--accent-glow)}
+.photo-zone img{max-width:100%;border-radius:8px;margin-top:12px;display:none}
+.photo-zone.has-img img{display:block}
+.photo-zone.has-img .photo-placeholder{display:none}
+.photo-placeholder{pointer-events:none}
+
+/* SPINNER */
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px 20px;color:var(--text2)}
+.empty svg{width:48px;height:48px;margin-bottom:12px;opacity:.3}
+.empty h3{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.empty p{font-size:13px}
+
+/* TOAST */
+#toast{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 18px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* NUTRIENT GRID */
+.nutrient-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.nutrient-cell{background:var(--s3);border-radius:var(--r-sm);padding:8px 10px}
+.nutrient-val{font-size:17px;font-weight:800;margin-bottom:2px}
+.nutrient-label{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+
+/* UTIL */
+.flex{display:flex}.gap-8{gap:8px}.gap-12{gap:12px}.items-center{align-items:center}
+.mt-8{margin-top:8px}.mt-12{margin-top:12px}.mt-16{margin-top:16px}
+.text-sm{font-size:13px}.text-xs{font-size:11px}.text-muted{color:var(--text2)}
+.fw-bold{font-weight:700}.text-center{text-align:center}
+.w-full{width:100%}
+.divider{height:1px;background:var(--border);margin:12px 0}
+
+/* PILL */
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:var(--s3);color:var(--text2)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view"></div>
+  <nav id="nav">
+    <button class="nav-btn active" data-view="today" onclick="setView('today')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span>Today</span>
+    </button>
+    <button class="nav-btn" data-view="history" onclick="setView('history')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>History</span>
+    </button>
+    <button class="nav-btn" data-view="mealpreps" onclick="setView('mealpreps')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11v3a9 9 0 0 0 18 0v-3"/><path d="M3 11h18"/><path d="M12 2v9"/></svg>
+      <span>Meal Preps</span>
+    </button>
+    <button class="nav-btn" data-view="settings" onclick="setView('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+</div>
+
+<button id="fab" onclick="openAddFood()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<div id="overlay" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="drag-handle"></div>
+    <div class="modal-header">
+      <h2 id="modal-title">Add Food</h2>
+      <button class="icon-btn" onclick="closeModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer" style="display:none"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── USDA DEMO KEY ───────────────────────────────────────────────
+const USDA_KEY = 'DEMO_KEY';
+
+// ─── STATE ───────────────────────────────────────────────────────
+let state = {
+  view: 'today',
+  selectedDate: todayStr(),
+  log: {},        // { "2026-05-27": [ {id, meal, name, emoji, cal, protein, carbs, fat, qty, unit} ] }
+  preps: [],      // [ {id, name, emoji, desc, foods, notes, servings} ]
+  customFoods: [], // [ {id, name, cal, protein, carbs, fat, serving, unit, emoji} ]
+  settings: {
+    apiKey: '',
+    googleClientId: '',
+    name: '',
+    calorieGoal: 2000,
+    proteinGoal: 150,
+    carbGoal: 200,
+    fatGoal: 65,
+    driveFileId: null,
+    driveSynced: false
+  }
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+function formatDate(str) {
+  const d = new Date(str + 'T00:00:00');
+  const today = todayStr();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate()-1);
+  const yStr = yesterday.toISOString().split('T')[0];
+  if (str === today) return 'Today';
+  if (str === yStr) return 'Yesterday';
+  return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function toast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), dur);
+}
+function dayLog(date) { return state.log[date] || []; }
+function dayTotals(date) {
+  const foods = dayLog(date);
+  return foods.reduce((acc, f) => {
+    acc.cal += (f.cal||0)*f.qty;
+    acc.protein += (f.protein||0)*f.qty;
+    acc.carbs += (f.carbs||0)*f.qty;
+    acc.fat += (f.fat||0)*f.qty;
+    return acc;
+  }, {cal:0, protein:0, carbs:0, fat:0});
+}
+function round1(n){ return Math.round(n*10)/10; }
+function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
+
+// ─── PERSIST (localStorage) ───────────────────────────────────────
+function save() {
+  localStorage.setItem('calai_state', JSON.stringify(state));
+  driveSaveDebounced();
+}
+function load() {
+  try {
+    const raw = localStorage.getItem('calai_state');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state = { ...state, ...parsed };
+    }
+  } catch(e) {}
+}
+
+// ─── GOOGLE DRIVE SYNC ───────────────────────────────────────────
+let driveReady = false;
+let driveToken = null;
+let driveSaveTimer = null;
+
+function driveSaveDebounced() {
+  if (!driveReady || !driveToken) return;
+  clearTimeout(driveSaveTimer);
+  driveSaveTimer = setTimeout(driveSave, 3000);
+}
+
+async function initDrive() {
+  const clientId = state.settings.googleClientId;
+  if (!clientId) return;
+  if (typeof google === 'undefined') {
+    toast('Google API not loaded — check your connection');
+    return;
+  }
+  try {
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: async (resp) => {
+        if (resp.error) { toast('Drive auth failed: ' + resp.error); return; }
+        driveToken = resp.access_token;
+        driveReady = true;
+        state.settings.driveSynced = true;
+        toast('✓ Google Drive connected!');
+        await driveLoad();
+        render();
+      }
+    });
+    tokenClient.requestAccessToken();
+  } catch(e) {
+    toast('Drive init error: ' + e.message);
+  }
+}
+
+async function driveSave() {
+  if (!driveReady || !driveToken) return;
+  const body = JSON.stringify(state);
+  const meta = {name:'calai-data.json', mimeType:'application/json'};
+  try {
+    if (state.settings.driveFileId) {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${state.settings.driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {'Authorization':'Bearer '+driveToken,'Content-Type':'application/json'},
+        body
+      });
+    } else {
+      const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {'Authorization':'Bearer '+driveToken,'Content-Type':'multipart/related; boundary=boundary123'},
+        body: `--boundary123\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--boundary123\r\nContent-Type: application/json\r\n\r\n${body}\r\n--boundary123--`
+      });
+      const file = await r.json();
+      state.settings.driveFileId = file.id;
+      localStorage.setItem('calai_state', JSON.stringify(state));
+    }
+  } catch(e) { console.warn('Drive save failed', e); }
+}
+
+async function driveLoad() {
+  if (!driveReady || !driveToken) return;
+  try {
+    let fileId = state.settings.driveFileId;
+    if (!fileId) {
+      const r = await fetch("https://www.googleapis.com/drive/v3/files?q=name='calai-data.json'&fields=files(id)", {
+        headers: {'Authorization':'Bearer '+driveToken}
+      });
+      const data = await r.json();
+      if (data.files && data.files.length) fileId = data.files[0].id;
+    }
+    if (fileId) {
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: {'Authorization':'Bearer '+driveToken}
+      });
+      const remote = await r.json();
+      // Merge: remote wins for settings, but merge log & preps
+      state.log = {...state.log, ...remote.log};
+      state.preps = remote.preps || state.preps;
+      state.customFoods = remote.customFoods || state.customFoods;
+      state.settings = {...state.settings, ...remote.settings, driveFileId: fileId};
+      save();
+      toast('↓ Synced from Drive');
+    }
+  } catch(e) { console.warn('Drive load failed', e); }
+}
+
+// ─── CLAUDE API ──────────────────────────────────────────────────
+async function callClaude(messages, system='') {
+  const key = state.settings.apiKey;
+  if (!key) { toast('⚠️ Add your Anthropic API key in Settings'); throw new Error('no key'); }
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-6',
+      max_tokens: 1024,
+      system: system || `You are a nutrition assistant. Return ONLY valid JSON, no markdown, no explanation.`,
+      messages
+    })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({}));
+    throw new Error(err.error?.message || 'API error ' + resp.status);
+  }
+  const data = await resp.json();
+  return data.content[0].text;
+}
+
+async function analyzePhoto(base64, mediaType) {
+  const sys = `You are a food nutrition analyzer. The user sends a photo of food. 
+Return ONLY a JSON array of food items detected. Each item: {name, emoji, cal, protein, carbs, fat, qty, unit}.
+All numbers are per-serving (qty=1 means the full item). Estimate realistic nutrition values.
+Example: [{"name":"Grilled Chicken Breast","emoji":"🍗","cal":165,"protein":31,"carbs":0,"fat":3.6,"qty":1,"unit":"piece"}]`;
+  const text = await callClaude([{
+    role: 'user',
+    content: [{type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
+              {type:'text',text:'What food items are in this image? Return JSON array.'}]
+  }], sys);
+  return JSON.parse(text.trim());
+}
+
+async function parseTextToFoods(text) {
+  const sys = `You are a food nutrition parser. The user describes what they ate.
+Return ONLY a JSON array of food items. Each: {name, emoji, cal, protein, carbs, fat, qty, unit}.
+All nutrition per single serving (multiply by qty for total). Estimate realistically.
+Example input: "I had 2 eggs and a bowl of oatmeal with honey"
+Example output: [{"name":"Scrambled Eggs","emoji":"🥚","cal":74,"protein":6,"carbs":0.4,"fat":5,"qty":2,"unit":"egg"},{"name":"Oatmeal with Honey","emoji":"🍯","cal":180,"protein":5,"carbs":34,"fat":3,"qty":1,"unit":"bowl"}]`;
+  const text2 = await callClaude([{role:'user',content:text}], sys);
+  return JSON.parse(text2.trim());
+}
+
+async function parseMealPrep(text) {
+  const sys = `You are a meal prep assistant. The user describes a meal prep session.
+Return ONLY a JSON object: {name, emoji, desc, servings, notes, foods:[{name,emoji,cal,protein,carbs,fat,qty,unit}]}
+The foods array should represent nutrition for ONE serving.
+Example: {"name":"Chicken & Rice Bowls","emoji":"🍱","desc":"Lean protein meal prep","servings":5,"notes":"Store in fridge 4 days","foods":[{"name":"Grilled Chicken","emoji":"🍗","cal":220,"protein":42,"carbs":0,"fat":4.5,"qty":1,"unit":"piece"},{"name":"Brown Rice","emoji":"🍚","cal":216,"protein":4.5,"carbs":45,"fat":1.8,"qty":1,"unit":"cup"}]}`;
+  const t2 = await callClaude([{role:'user',content:text}], sys);
+  return JSON.parse(t2.trim());
+}
+
+// ─── USDA FOOD SEARCH ────────────────────────────────────────────
+async function searchUSDA(query) {
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=8&api_key=${USDA_KEY}`;
+  const r = await fetch(url);
+  const data = await r.json();
+  return (data.foods||[]).map(f => {
+    const get = (n) => (f.foodNutrients||[]).find(x=>x.nutrientName===n)?.value||0;
+    const cal = Math.round(get('Energy'));
+    const protein = round1(get('Protein'));
+    const carbs = round1(get('Carbohydrate, by difference'));
+    const fat = round1(get('Total lipid (fat)'));
+    return {
+      name: f.description,
+      brand: f.brandOwner||'',
+      emoji: guessEmoji(f.description),
+      cal, protein, carbs, fat,
+      qty: 1,
+      unit: f.servingSizeUnit||'serving',
+      fdcId: f.fdcId
+    };
+  });
+}
+
+function guessEmoji(name) {
+  const n = name.toLowerCase();
+  if (/chicken/.test(n)) return '🍗';
+  if (/egg/.test(n)) return '🥚';
+  if (/apple/.test(n)) return '🍎';
+  if (/banana/.test(n)) return '🍌';
+  if (/rice/.test(n)) return '🍚';
+  if (/bread|toast/.test(n)) return '🍞';
+  if (/milk/.test(n)) return '🥛';
+  if (/coffee/.test(n)) return '☕';
+  if (/pizza/.test(n)) return '🍕';
+  if (/burger|beef/.test(n)) return '🍔';
+  if (/salmon|fish|tuna/.test(n)) return '🐟';
+  if (/broccoli|vegetable|veggie/.test(n)) return '🥦';
+  if (/protein|whey/.test(n)) return '💪';
+  if (/yogurt/.test(n)) return '🥛';
+  if (/oat/.test(n)) return '🥣';
+  if (/pasta|noodle/.test(n)) return '🍝';
+  if (/salad/.test(n)) return '🥗';
+  if (/sandwich/.test(n)) return '🥪';
+  if (/cookie|cake/.test(n)) return '🍪';
+  if (/chocolate/.test(n)) return '🍫';
+  return '🍽️';
+}
+
+// ─── VIEWS ───────────────────────────────────────────────────────
+function setView(v) {
+  state.view = v;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view===v));
+  render();
+}
+
+function render() {
+  const v = document.getElementById('view');
+  switch(state.view) {
+    case 'today': v.innerHTML = renderToday(); break;
+    case 'history': v.innerHTML = renderHistory(); break;
+    case 'mealpreps': v.innerHTML = renderMealPreps(); break;
+    case 'settings': v.innerHTML = renderSettings(); break;
+  }
+}
+
+// ── TODAY VIEW ───────────────────────────────────────────────────
+function renderToday() {
+  const totals = dayTotals(state.selectedDate);
+  const s = state.settings;
+  const pct = clamp(totals.cal / (s.calorieGoal||2000), 0, 1);
+  const R = 80, C = 2*Math.PI*R;
+  const offset = C - pct*C;
+  const rem = Math.max(0, (s.calorieGoal||2000) - Math.round(totals.cal));
+  const foods = dayLog(state.selectedDate);
+  const meals = {Breakfast:[],Lunch:[],Dinner:[],Snacks:[]};
+  foods.forEach(f => { (meals[f.meal] || meals.Snacks).push(f); });
+
+  const ringColor = pct >= 1 ? 'var(--orange)' : 'var(--accent)';
+
+  return `
+  <div class="view-header">
+    <div>
+      <h1>${formatDate(state.selectedDate)}</h1>
+      <div class="sub">${s.name ? 'Hey '+s.name+'!' : 'Track your nutrition'}</div>
+    </div>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="changeDate(-1)">‹ Prev</button>
+      ${state.selectedDate !== todayStr() ? `<button class="btn btn-ghost btn-sm" onclick="changeDate(1)">Next ›</button>` : ''}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ring-wrap">
+      <svg width="200" height="200" class="ring-svg">
+        <circle class="ring-track" cx="100" cy="100" r="${R}" stroke-width="14"/>
+        <circle class="ring-fill" cx="100" cy="100" r="${R}" stroke-width="14"
+          stroke="${ringColor}"
+          stroke-dasharray="${C}" stroke-dashoffset="${offset}"
+          style="transition:stroke-dashoffset .6s ease"/>
+        <text class="ring-cal" x="100" y="94" font-family="-apple-system,sans-serif" text-anchor="middle" dominant-baseline="middle" fill="var(--text)">${Math.round(totals.cal)}</text>
+        <text x="100" y="116" font-family="-apple-system,sans-serif" font-size="12" fill="var(--text2)" text-anchor="middle">of ${s.calorieGoal||2000} kcal</text>
+        <text x="100" y="133" font-family="-apple-system,sans-serif" font-size="11" fill="${pct>=1?'var(--orange)':'var(--green)'}" text-anchor="middle" font-weight="700">${pct>=1 ? '+'+Math.round(totals.cal-(s.calorieGoal||2000))+' over' : rem+' remaining'}</text>
+      </svg>
+    </div>
+    ${renderMacroBar('Protein', totals.protein, s.proteinGoal||150, '#60a5fa', 'g')}
+    ${renderMacroBar('Carbs', totals.carbs, s.carbGoal||200, '#fbbf24', 'g')}
+    ${renderMacroBar('Fat', totals.fat, s.fatGoal||65, '#f87171', 'g')}
+  </div>
+
+  ${Object.entries(meals).map(([meal, items]) => {
+    if (!items.length) return '';
+    const mCal = items.reduce((s,f)=>s+(f.cal||0)*f.qty,0);
+    return `
+    <div class="meal-section" style="margin-top:16px">
+      <div class="meal-section-header">
+        <span class="meal-section-title">${meal}</span>
+        <span class="meal-section-cal">${Math.round(mCal)} kcal</span>
+      </div>
+      <div class="card" style="padding:8px 16px">
+        ${items.map(f => renderFoodItem(f, true)).join('')}
+      </div>
+    </div>`;
+  }).join('')}
+
+  ${!foods.length ? `
+  <div class="empty" style="margin-top:24px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11v3a9 9 0 0 0 18 0v-3"/><path d="M3 11h18"/><path d="M12 2v9"/></svg>
+    <h3>Nothing logged yet</h3>
+    <p>Tap + to add your first meal</p>
+  </div>` : ''}
+  <div style="height:100px"></div>`;
+}
+
+function renderMacroBar(label, val, goal, color, unit) {
+  const pct = clamp(val/goal, 0, 1)*100;
+  return `
+  <div class="macro-bar-wrap">
+    <div class="macro-bar-header">
+      <span class="macro-bar-label" style="color:${color}">${label}</span>
+      <span class="macro-bar-val">${round1(val)}${unit} / ${goal}${unit}</span>
+    </div>
+    <div class="macro-bar-track">
+      <div class="macro-bar-fill" style="width:${pct}%;background:${color}"></div>
+    </div>
+  </div>`;
+}
+
+function renderFoodItem(f, deletable=false) {
+  const totalCal = Math.round((f.cal||0)*f.qty);
+  return `
+  <div class="food-item">
+    <div class="food-icon">${f.emoji||'🍽️'}</div>
+    <div style="flex:1;min-width:0">
+      <div class="food-name">${f.name}</div>
+      <div class="food-macros">
+        <span class="macro-p">P:${round1((f.protein||0)*f.qty)}g</span>
+        <span class="macro-c">C:${round1((f.carbs||0)*f.qty)}g</span>
+        <span class="macro-f">F:${round1((f.fat||0)*f.qty)}g</span>
+        <span style="color:var(--text3)">${f.qty}×${f.unit||'srv'}</span>
+      </div>
+    </div>
+    <div class="flex gap-8 items-center">
+      <span class="food-cal">${totalCal}</span>
+      ${deletable ? `<button class="icon-btn" onclick="removeFood('${f.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>` : ''}
+    </div>
+  </div>`;
+}
+
+function changeDate(delta) {
+  const d = new Date(state.selectedDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  state.selectedDate = d.toISOString().split('T')[0];
+  render();
+}
+
+function removeFood(id) {
+  const date = state.selectedDate;
+  state.log[date] = (state.log[date]||[]).filter(f=>f.id!==id);
+  save(); render();
+}
+
+// ── HISTORY VIEW ─────────────────────────────────────────────────
+function renderHistory() {
+  const dates = Object.keys(state.log).filter(d=>state.log[d]?.length).sort().reverse();
+  return `
+  <div class="view-header"><h1>History</h1></div>
+  ${!dates.length ? `
+  <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  <h3>No history yet</h3><p>Your logged days will appear here</p></div>` :
+  dates.map(d => {
+    const t = dayTotals(d);
+    const s = state.settings;
+    const pct = clamp(t.cal/(s.calorieGoal||2000),0,1);
+    const barColor = pct>1?'var(--orange)':pct>.9?'var(--green)':'var(--accent)';
+    return `
+    <div class="history-day" onclick="state.selectedDate='${d}';setView('today')">
+      <div class="history-day-header">
+        <span class="history-day-date">${formatDate(d)}</span>
+        <span class="history-day-cal">${Math.round(t.cal)} kcal</span>
+      </div>
+      <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct*100}%;background:${barColor};border-radius:3px;transition:width .4s ease"></div>
+      </div>
+      <div class="flex gap-12 mt-8 text-xs text-muted">
+        <span>🥩 P: ${round1(t.protein)}g</span>
+        <span>🌾 C: ${round1(t.carbs)}g</span>
+        <span>🧈 F: ${round1(t.fat)}g</span>
+        <span>${state.log[d].length} items</span>
+      </div>
+    </div>`;
+  }).join('')}
+  <div style="height:100px"></div>`;
+}
+
+// ── MEAL PREPS VIEW ──────────────────────────────────────────────
+function renderMealPreps() {
+  return `
+  <div class="view-header">
+    <h1>Meal Preps</h1>
+    <button class="btn btn-primary btn-sm" onclick="openNewPrepModal()">+ New Prep</button>
+  </div>
+  ${!state.preps.length ? `
+  <div class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11v3a9 9 0 0 0 18 0v-3"/><path d="M3 11h18"/><path d="M12 2v9"/></svg>
+    <h3>No meal preps saved</h3>
+    <p>Tap "+ New Prep" or use the AI chat to describe your meal prep</p>
+  </div>` :
+  state.preps.map(p => {
+    const totalCal = (p.foods||[]).reduce((s,f)=>(s+(f.cal||0)*f.qty),0);
+    const totalProtein = (p.foods||[]).reduce((s,f)=>(s+(f.protein||0)*f.qty),0);
+    return `
+    <div class="prep-card" style="margin-bottom:12px">
+      <div class="flex items-center" style="justify-content:space-between;margin-bottom:6px">
+        <div class="flex items-center gap-8">
+          <span style="font-size:28px">${p.emoji||'🍱'}</span>
+          <div>
+            <div class="prep-card-name">${p.name}</div>
+            <div class="prep-card-meta">${p.servings||1} servings · ${p.desc||''}</div>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="deletePrep('${p.id}');event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="prep-card-cals">${Math.round(totalCal)} kcal <span style="font-size:13px;font-weight:400;color:var(--text2)">per serving · ${Math.round(totalProtein)}g protein</span></div>
+      ${p.notes ? `<div class="text-xs text-muted" style="margin-bottom:8px">${p.notes}</div>` : ''}
+      <div class="flex gap-8">
+        <button class="btn btn-primary btn-sm" onclick="logPrepToday('${p.id}')">Log to Today</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewPrep('${p.id}')">View Details</button>
+      </div>
+    </div>`;
+  }).join('')}
+  <div style="height:100px"></div>`;
+}
+
+function deletePrep(id) {
+  state.preps = state.preps.filter(p=>p.id!==id);
+  save(); render();
+  toast('Meal prep deleted');
+}
+
+function logPrepToday(id) {
+  const prep = state.preps.find(p=>p.id===id);
+  if (!prep) return;
+  const date = state.selectedDate;
+  if (!state.log[date]) state.log[date] = [];
+  prep.foods.forEach(f => {
+    state.log[date].push({...f, id:uid(), meal:'Lunch'});
+  });
+  save();
+  toast('✓ Logged ' + prep.name + ' to ' + formatDate(date));
+  setView('today');
+}
+
+function viewPrep(id) {
+  const prep = state.preps.find(p=>p.id===id);
+  if (!prep) return;
+  openModal('prepDetail', prep);
+}
+
+// ── SETTINGS VIEW ────────────────────────────────────────────────
+function renderSettings() {
+  const s = state.settings;
+  return `
+  <div class="view-header"><h1>Settings</h1></div>
+  
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Profile</div>
+    <div class="label">Your Name</div>
+    <input class="input" placeholder="e.g. Alex" value="${s.name||''}" oninput="state.settings.name=this.value;save()">
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Daily Goals</div>
+    <div class="label">Calories</div>
+    <input class="input" type="number" value="${s.calorieGoal||2000}" oninput="state.settings.calorieGoal=+this.value;save();render()" style="margin-bottom:10px">
+    <div class="label">Protein (g)</div>
+    <input class="input" type="number" value="${s.proteinGoal||150}" oninput="state.settings.proteinGoal=+this.value;save()" style="margin-bottom:10px">
+    <div class="label">Carbs (g)</div>
+    <input class="input" type="number" value="${s.carbGoal||200}" oninput="state.settings.carbGoal=+this.value;save()" style="margin-bottom:10px">
+    <div class="label">Fat (g)</div>
+    <input class="input" type="number" value="${s.fatGoal||65}" oninput="state.settings.fatGoal=+this.value;save()">
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">AI (Anthropic)</div>
+    <div class="label">API Key</div>
+    <input class="input" type="password" placeholder="sk-ant-..." value="${s.apiKey||''}" oninput="state.settings.apiKey=this.value;save()">
+    <div class="text-xs text-muted mt-8">Used for food photo detection and AI text input. Get a key at <span style="color:var(--accent)">console.anthropic.com</span></div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Google Drive Sync</div>
+    <div class="flex items-center" style="justify-content:space-between;margin-bottom:12px">
+      <span class="setting-label">Status</span>
+      <span class="badge ${s.driveSynced?'badge-green':'badge-red'}">${s.driveSynced?'✓ Connected':'Not connected'}</span>
+    </div>
+    <div class="label">OAuth Client ID</div>
+    <input class="input" placeholder="xxxx.apps.googleusercontent.com" value="${s.googleClientId||''}" oninput="state.settings.googleClientId=this.value;save()" style="margin-bottom:10px">
+    <button class="btn btn-primary btn-full" onclick="initDrive()">Connect Google Drive</button>
+    <div class="text-xs text-muted mt-8">
+      ⚠️ Drive sync requires serving this file over HTTP (not file://). Run:<br>
+      <code style="background:var(--s3);padding:2px 6px;border-radius:4px;font-size:11px">python3 -m http.server 8080</code><br>
+      then open <code style="background:var(--s3);padding:2px 6px;border-radius:4px;font-size:11px">localhost:8080/calai.html</code><br><br>
+      In Google Cloud Console → Create OAuth Client → Web app → Add <code style="background:var(--s3);padding:2px 6px;border-radius:4px;font-size:11px">http://localhost:8080</code> as authorized origin.
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Data</div>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="exportData()">Export JSON</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div class="divider"></div>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear ALL data?')){localStorage.clear();location.reload()}">Clear All Data</button>
+  </div>
+  <div style="height:100px"></div>`;
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'calai-backup-'+todayStr()+'.json';
+  a.click();
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      state = {...state,...imported};
+      save(); render();
+      toast('✓ Data imported!');
+    } catch { toast('⚠️ Invalid file'); }
+  };
+  reader.readAsText(file);
+}
+
+// ─── MODALS ──────────────────────────────────────────────────────
+let currentModal = null;
+let currentModalData = null;
+
+function openModal(type, data={}) {
+  currentModal = type;
+  currentModalData = data;
+  const overlay = document.getElementById('overlay');
+  const body = document.getElementById('modal-body');
+  const footer = document.getElementById('modal-footer');
+  const title = document.getElementById('modal-title');
+  overlay.classList.add('open');
+
+  if (type === 'addFood') {
+    title.textContent = 'Add Food';
+    footer.style.display = 'none';
+    body.innerHTML = renderAddFoodModal();
+    initAddFoodModal();
+  } else if (type === 'newPrep') {
+    title.textContent = 'New Meal Prep';
+    footer.style.display = 'none';
+    body.innerHTML = renderNewPrepModal();
+  } else if (type === 'prepDetail') {
+    title.textContent = data.name;
+    footer.style.display = 'none';
+    body.innerHTML = renderPrepDetailModal(data);
+  } else if (type === 'serving') {
+    title.textContent = 'Add to Log';
+    footer.style.display = 'none';
+    body.innerHTML = renderServingModal(data);
+  }
+}
+
+function openAddFood() { openModal('addFood'); }
+function openNewPrepModal() { openModal('newPrep'); }
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  currentModal = null;
+}
+
+function handleOverlayClick(e) {
+  if (e.target.id === 'overlay') closeModal();
+}
+
+// ── ADD FOOD MODAL ───────────────────────────────────────────────
+function renderAddFoodModal() {
+  return `
+  <div class="tabs">
+    <button class="tab active" onclick="switchAddTab('search',this)">🔍 Search</button>
+    <button class="tab" onclick="switchAddTab('photo',this)">📷 Photo AI</button>
+    <button class="tab" onclick="switchAddTab('chat',this)">💬 AI Chat</button>
+  </div>
+  <div id="add-tab-content"></div>`;
+}
+
+function initAddFoodModal() {
+  switchAddTab('search', document.querySelector('.tab.active'));
+}
+
+function switchAddTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const c = document.getElementById('add-tab-content');
+  if (tab==='search') c.innerHTML = renderSearchTab();
+  if (tab==='photo') c.innerHTML = renderPhotoTab();
+  if (tab==='chat') c.innerHTML = renderChatTab();
+}
+
+function renderSearchTab() {
+  return `
+  <div class="input-row" style="margin-bottom:12px">
+    <input class="input" id="food-search" placeholder="Search foods... (e.g. chicken breast)" 
+      onkeydown="if(event.key==='Enter')doFoodSearch()"
+      oninput="clearTimeout(window._st);window._st=setTimeout(doFoodSearch,600)">
+    <button class="btn btn-primary btn-sm" onclick="doFoodSearch()">Search</button>
+  </div>
+  <div id="search-status" class="text-xs text-muted" style="margin-bottom:8px"></div>
+  <div id="search-results"></div>
+  <div class="divider"></div>
+  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Meal</div>
+  <select class="input" id="meal-select" style="margin-bottom:0">
+    <option>Breakfast</option><option selected>Lunch</option><option>Dinner</option><option>Snacks</option>
+  </select>`;
+}
+
+async function doFoodSearch() {
+  const q = document.getElementById('food-search')?.value?.trim();
+  if (!q) return;
+  const status = document.getElementById('search-status');
+  const results = document.getElementById('search-results');
+  if (!status || !results) return;
+  status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Searching...</div>';
+  results.innerHTML = '';
+  try {
+    const foods = await searchUSDA(q);
+    status.textContent = foods.length ? `${foods.length} results` : 'No results';
+    results.innerHTML = foods.map(f => `
+      <div class="search-result" onclick='openServingPicker(${JSON.stringify(f).replace(/'/g,"&apos;")})'>
+        <div class="search-result-name">${f.emoji} ${f.name}</div>
+        <div class="search-result-meta">${f.cal} kcal · P:${f.protein}g C:${f.carbs}g F:${f.fat}g${f.brand?' · '+f.brand:''}</div>
+      </div>`).join('');
+  } catch(e) {
+    status.textContent = 'Search failed: ' + e.message;
+  }
+}
+
+function openServingPicker(food) {
+  const meal = document.getElementById('meal-select')?.value || 'Lunch';
+  openModal('serving', {...food, meal});
+}
+
+function renderServingModal(food) {
+  return `
+  <div class="flex items-center gap-12" style="margin-bottom:16px">
+    <span style="font-size:40px">${food.emoji||'🍽️'}</span>
+    <div>
+      <div style="font-size:16px;font-weight:700">${food.name}</div>
+      ${food.brand?`<div class="text-sm text-muted">${food.brand}</div>`:''}
+    </div>
+  </div>
+  <div class="nutrient-grid" style="margin-bottom:16px">
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:var(--accent)">${food.cal}</div><div class="nutrient-label">Calories</div></div>
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:#60a5fa">${food.protein}g</div><div class="nutrient-label">Protein</div></div>
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:#fbbf24">${food.carbs}g</div><div class="nutrient-label">Carbs</div></div>
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:#f87171">${food.fat}g</div><div class="nutrient-label">Fat</div></div>
+  </div>
+  <div class="label">Servings</div>
+  <input class="input" type="number" id="qty-input" value="1" min="0.25" step="0.25" style="margin-bottom:10px" oninput="updateServingPreview(${food.cal},${food.protein},${food.carbs},${food.fat})">
+  <div id="serving-preview" class="text-sm text-muted" style="margin-bottom:14px">Total: ${food.cal} kcal</div>
+  <div class="label">Meal</div>
+  <select class="input" id="serving-meal" style="margin-bottom:16px">
+    <option>Breakfast</option><option selected>Lunch</option><option>Dinner</option><option>Snacks</option>
+  </select>
+  <button class="btn btn-primary btn-full" onclick='confirmAddFood(${JSON.stringify(food).replace(/'/g,"&apos;")})'>Add to Log</button>`;
+}
+
+function updateServingPreview(cal,p,c,f) {
+  const qty = parseFloat(document.getElementById('qty-input')?.value)||1;
+  const el = document.getElementById('serving-preview');
+  if (el) el.textContent = `Total: ${Math.round(cal*qty)} kcal · P:${round1(p*qty)}g C:${round1(c*qty)}g F:${round1(f*qty)}g`;
+}
+
+function confirmAddFood(food) {
+  const qty = parseFloat(document.getElementById('qty-input')?.value)||1;
+  const meal = document.getElementById('serving-meal')?.value || 'Lunch';
+  const date = state.selectedDate;
+  if (!state.log[date]) state.log[date] = [];
+  state.log[date].push({...food, qty, meal, id:uid()});
+  save();
+  toast(`✓ Added ${food.name}`);
+  closeModal();
+  render();
+}
+
+// ── PHOTO TAB ────────────────────────────────────────────────────
+function renderPhotoTab() {
+  return `
+  <div class="photo-zone" id="photo-zone" onclick="document.getElementById('photo-input').click()"
+    ondragover="event.preventDefault();this.classList.add('drag')"
+    ondragleave="this.classList.remove('drag')"
+    ondrop="handlePhotoDrop(event)">
+    <div class="photo-placeholder">
+      <div style="font-size:40px;margin-bottom:8px">📷</div>
+      <div style="font-weight:700;margin-bottom:4px">Tap to take or upload a photo</div>
+      <div class="text-sm text-muted">Claude AI will identify the food and estimate nutrition</div>
+    </div>
+    <img id="photo-preview" src="" alt="food photo">
+  </div>
+  <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(event)">
+  <div id="photo-status" style="margin-top:12px"></div>
+  <div id="photo-results"></div>`;
+}
+
+function handlePhotoDrop(e) {
+  e.preventDefault();
+  document.getElementById('photo-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) processPhotoFile(file);
+}
+
+function handlePhotoSelect(e) {
+  const file = e.target.files[0];
+  if (file) processPhotoFile(file);
+}
+
+function processPhotoFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const dataUrl = e.target.result;
+    const zone = document.getElementById('photo-zone');
+    const preview = document.getElementById('photo-preview');
+    if (zone && preview) {
+      preview.src = dataUrl;
+      zone.classList.add('has-img');
+    }
+    const status = document.getElementById('photo-status');
+    if (status) status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner"></div> <span>Analyzing with Claude AI...</span></div>';
+    
+    try {
+      const base64 = dataUrl.split(',')[1];
+      const mtype = file.type || 'image/jpeg';
+      const foods = await analyzePhoto(base64, mtype);
+      if (status) status.innerHTML = `<div class="text-sm" style="color:var(--green);font-weight:600">✓ Found ${foods.length} item(s)</div>`;
+      const results = document.getElementById('photo-results');
+      if (results) {
+        results.innerHTML = `
+        <div class="divider"></div>
+        <div class="label">Meal</div>
+        <select class="input" id="photo-meal" style="margin-bottom:10px">
+          <option>Breakfast</option><option selected>Lunch</option><option>Dinner</option><option>Snacks</option>
+        </select>
+        ${foods.map((f,i)=>`
+        <div class="food-item" style="border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px">
+          <div class="food-icon">${f.emoji||'🍽️'}</div>
+          <div style="flex:1;min-width:0">
+            <div class="food-name">${f.name}</div>
+            <div class="food-macros">
+              <span>Cal: <b>${f.cal}</b></span>
+              <span class="macro-p">P:${f.protein}g</span>
+              <span class="macro-c">C:${f.carbs}g</span>
+              <span class="macro-f">F:${f.fat}g</span>
+            </div>
+          </div>
+          <input type="number" class="input" value="${f.qty||1}" min="0.25" step="0.25" 
+            style="width:55px;padding:6px;font-size:13px;text-align:center"
+            oninput="window._photoFoods[${i}].qty=+this.value">
+        </div>`).join('')}
+        <button class="btn btn-primary btn-full mt-12" onclick="addPhotoFoods()">Add All to Log</button>`;
+        window._photoFoods = foods;
+      }
+    } catch(e2) {
+      if (status) status.innerHTML = `<div class="text-sm" style="color:var(--red)">⚠️ ${e2.message}</div>`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function addPhotoFoods() {
+  const meal = document.getElementById('photo-meal')?.value || 'Lunch';
+  const date = state.selectedDate;
+  if (!state.log[date]) state.log[date] = [];
+  (window._photoFoods||[]).forEach(f => {
+    state.log[date].push({...f, meal, id:uid()});
+  });
+  save();
+  toast(`✓ Added ${(window._photoFoods||[]).length} items`);
+  closeModal(); render();
+}
+
+// ── AI CHAT TAB ──────────────────────────────────────────────────
+let chatHistory = [];
+
+function renderChatTab() {
+  chatHistory = [];
+  return `
+  <div id="chat-msgs" class="chat-messages">
+    <div class="chat-msg ai">Hey! Tell me what you ate and I'll log it for you. For example: <em>"I had 2 scrambled eggs and a cup of coffee with oat milk"</em></div>
+  </div>
+  <div class="label">Meal</div>
+  <select class="input" id="chat-meal" style="margin-bottom:8px">
+    <option>Breakfast</option><option selected>Lunch</option><option>Dinner</option><option>Snacks</option>
+  </select>
+  <div class="input-row">
+    <input class="input" id="chat-input" placeholder="What did you eat?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatFood()}">
+    <button class="btn btn-primary" onclick="sendChatFood()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>`;
+}
+
+async function sendChatFood() {
+  const input = document.getElementById('chat-input');
+  const msgs = document.getElementById('chat-msgs');
+  if (!input || !msgs) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  msgs.innerHTML += `<div class="chat-msg user">${text}</div>`;
+  msgs.innerHTML += `<div class="chat-msg ai thinking" id="thinking-msg">Analyzing...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const foods = await parseTextToFoods(text);
+    const meal = document.getElementById('chat-meal')?.value || 'Lunch';
+    const thinking = document.getElementById('thinking-msg');
+    if (thinking) thinking.remove();
+
+    const total = foods.reduce((s,f)=>s+(f.cal||0)*f.qty, 0);
+    const summary = foods.map(f=>`${f.emoji||''} ${f.name} (${Math.round((f.cal||0)*f.qty)} kcal)`).join(', ');
+    msgs.innerHTML += `<div class="chat-msg ai">Got it! Found: ${summary}<br><b>Total: ~${Math.round(total)} kcal</b></div>`;
+    
+    // Add to log
+    const date = state.selectedDate;
+    if (!state.log[date]) state.log[date] = [];
+    foods.forEach(f => state.log[date].push({...f, meal, id:uid()}));
+    save();
+    
+    msgs.innerHTML += `<div class="chat-msg ai" style="background:var(--green-dim);color:var(--green)">✓ Logged to ${formatDate(date)}!</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e2) {
+    const thinking = document.getElementById('thinking-msg');
+    if (thinking) thinking.textContent = '⚠️ ' + e2.message;
+  }
+}
+
+// ── NEW PREP MODAL ───────────────────────────────────────────────
+function renderNewPrepModal() {
+  return `
+  <div class="tabs">
+    <button class="tab active" onclick="switchPrepTab('chat',this)">💬 AI Chat</button>
+    <button class="tab" onclick="switchPrepTab('manual',this)">✏️ Manual</button>
+  </div>
+  <div id="prep-tab-content"></div>`;
+  setTimeout(()=>switchPrepTab('chat', document.querySelector('#modal-body .tab.active')), 0);
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#modal-body .tab') && currentModal === 'newPrep') {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+  }
+});
+
+function switchPrepTab(tab, el) {
+  document.querySelectorAll('#modal-body .tab').forEach(t=>t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const c = document.getElementById('prep-tab-content');
+  if (!c) return;
+  if (tab==='chat') c.innerHTML = renderPrepChatTab();
+  if (tab==='manual') c.innerHTML = renderManualPrepTab();
+}
+
+function renderPrepChatTab() {
+  return `
+  <div class="chat-messages" id="prep-chat-msgs" style="min-height:60px;max-height:150px">
+    <div class="chat-msg ai">Describe your meal prep! e.g. <em>"I prepped 5 servings of grilled chicken breast with brown rice and broccoli"</em></div>
+  </div>
+  <div class="input-row mt-8">
+    <input class="input" id="prep-chat-input" placeholder="Describe your meal prep..." onkeydown="if(event.key==='Enter'){event.preventDefault();sendPrepChat()}">
+    <button class="btn btn-primary" onclick="sendPrepChat()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>`;
+}
+
+async function sendPrepChat() {
+  const input = document.getElementById('prep-chat-input');
+  const msgs = document.getElementById('prep-chat-msgs');
+  if (!input || !msgs) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  msgs.innerHTML += `<div class="chat-msg user">${text}</div>`;
+  msgs.innerHTML += `<div class="chat-msg ai thinking" id="prep-thinking">Analyzing meal prep...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  try {
+    const prep = await parseMealPrep(text);
+    const t = document.getElementById('prep-thinking');
+    if (t) t.remove();
+    const totalCal = (prep.foods||[]).reduce((s,f)=>s+(f.cal||0)*f.qty,0);
+    msgs.innerHTML += `<div class="chat-msg ai">
+      <b>${prep.emoji||'🍱'} ${prep.name}</b><br>
+      ${prep.servings} servings · ~${Math.round(totalCal)} kcal/serving<br>
+      ${prep.desc||''}
+    </div>`;
+    prep.id = uid();
+    state.preps.push(prep);
+    save();
+    msgs.innerHTML += `<div class="chat-msg ai" style="background:var(--green-dim);color:var(--green)">✓ Meal prep saved!</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e) {
+    const t = document.getElementById('prep-thinking');
+    if (t) t.textContent = '⚠️ ' + e.message;
+  }
+}
+
+function renderManualPrepTab() {
+  return `
+  <div class="label">Prep Name</div>
+  <input class="input" id="mp-name" placeholder="e.g. Chicken & Rice Bowls" style="margin-bottom:10px">
+  <div class="label">Emoji</div>
+  <input class="input" id="mp-emoji" placeholder="🍱" maxlength="2" style="margin-bottom:10px;width:80px">
+  <div class="label">Servings</div>
+  <input class="input" type="number" id="mp-servings" value="5" min="1" style="margin-bottom:10px">
+  <div class="label">Notes</div>
+  <input class="input" id="mp-notes" placeholder="e.g. Store in fridge, lasts 4 days" style="margin-bottom:10px">
+  <div style="font-weight:700;font-size:14px;margin-bottom:8px">Foods (per serving)</div>
+  <div id="mp-foods-list"></div>
+  <button class="btn btn-ghost btn-sm mt-8" onclick="addManualPrepFood()" style="width:100%">+ Add Food</button>
+  <button class="btn btn-primary btn-full mt-12" onclick="saveManualPrep()">Save Meal Prep</button>`;
+}
+
+let manualPrepFoods = [];
+
+function addManualPrepFood() {
+  const id = uid();
+  manualPrepFoods.push({id});
+  const list = document.getElementById('mp-foods-list');
+  if (!list) return;
+  const div = document.createElement('div');
+  div.id = 'mpf-'+id;
+  div.style.cssText = 'background:var(--s2);border-radius:var(--r-sm);padding:10px;margin-bottom:8px';
+  div.innerHTML = `
+  <div class="flex gap-8 items-center" style="margin-bottom:6px">
+    <input class="input" placeholder="Food name" style="flex:1" id="mpf-name-${id}">
+    <input class="input" placeholder="😋" maxlength="2" style="width:50px" id="mpf-emoji-${id}">
+    <button class="icon-btn" onclick="removeManualFood('${id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="flex gap-8">
+    <input class="input" type="number" placeholder="Cal" id="mpf-cal-${id}" style="flex:1">
+    <input class="input" type="number" placeholder="P(g)" id="mpf-p-${id}" style="flex:1">
+    <input class="input" type="number" placeholder="C(g)" id="mpf-c-${id}" style="flex:1">
+    <input class="input" type="number" placeholder="F(g)" id="mpf-f-${id}" style="flex:1">
+  </div>`;
+  list.appendChild(div);
+}
+
+function removeManualFood(id) {
+  manualPrepFoods = manualPrepFoods.filter(f=>f.id!==id);
+  document.getElementById('mpf-'+id)?.remove();
+}
+
+function saveManualPrep() {
+  const name = document.getElementById('mp-name')?.value?.trim();
+  if (!name) { toast('Enter a prep name'); return; }
+  const foods = manualPrepFoods.map(f => ({
+    id: uid(),
+    name: document.getElementById('mpf-name-'+f.id)?.value||'Food',
+    emoji: document.getElementById('mpf-emoji-'+f.id)?.value||'🍽️',
+    cal: +document.getElementById('mpf-cal-'+f.id)?.value||0,
+    protein: +document.getElementById('mpf-p-'+f.id)?.value||0,
+    carbs: +document.getElementById('mpf-c-'+f.id)?.value||0,
+    fat: +document.getElementById('mpf-f-'+f.id)?.value||0,
+    qty: 1, unit: 'serving'
+  }));
+  const prep = {
+    id: uid(),
+    name,
+    emoji: document.getElementById('mp-emoji')?.value||'🍱',
+    servings: +document.getElementById('mp-servings')?.value||5,
+    notes: document.getElementById('mp-notes')?.value||'',
+    desc: '',
+    foods
+  };
+  state.preps.push(prep);
+  save(); closeModal(); render();
+  toast('✓ Meal prep saved!');
+}
+
+function renderPrepDetailModal(prep) {
+  const totalCal = (prep.foods||[]).reduce((s,f)=>s+(f.cal||0)*f.qty,0);
+  const totalP = (prep.foods||[]).reduce((s,f)=>s+(f.protein||0)*f.qty,0);
+  return `
+  <div class="flex items-center gap-12" style="margin-bottom:16px">
+    <span style="font-size:44px">${prep.emoji||'🍱'}</span>
+    <div>
+      <div style="font-size:18px;font-weight:800">${prep.name}</div>
+      <div class="text-sm text-muted">${prep.servings} servings${prep.desc?' · '+prep.desc:''}</div>
+    </div>
+  </div>
+  <div class="nutrient-grid" style="margin-bottom:16px">
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:var(--accent)">${Math.round(totalCal)}</div><div class="nutrient-label">Calories/serving</div></div>
+    <div class="nutrient-cell"><div class="nutrient-val" style="color:#60a5fa">${round1(totalP)}g</div><div class="nutrient-label">Protein</div></div>
+  </div>
+  ${prep.notes?`<div class="text-sm text-muted" style="margin-bottom:12px">📝 ${prep.notes}</div>`:''}
+  <div style="font-weight:700;font-size:13px;margin-bottom:8px">Ingredients (per serving)</div>
+  ${(prep.foods||[]).map(f=>renderFoodItem(f,false)).join('')}
+  <div class="flex gap-8 mt-12">
+    <button class="btn btn-primary" style="flex:1" onclick="logPrepToday('${prep.id}');closeModal()">Log to Today</button>
+    <button class="btn btn-danger btn-sm" onclick="deletePrep('${prep.id}');closeModal()">Delete</button>
+  </div>`;
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+load();
+render();
+
+// Fix for meal prep tabs
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab || !document.getElementById('prep-tab-content')) return;
+  const tabText = tab.textContent.trim();
+  if (tabText.includes('AI Chat')) switchPrepTab('chat', tab);
+  if (tabText.includes('Manual')) switchPrepTab('manual', tab);
+});
+</script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+</body>
+</html>
