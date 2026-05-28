@@ -371,11 +371,17 @@ async function initDrive() {
   }
 }
 
+function getDriveFileName() {
+  const n = (state.settings.name||'default').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  return `calai-${n}.json`;
+}
+
 async function driveSave() {
   if (!driveReady || !driveToken) return;
   const body = JSON.stringify(state);
   const folderId = state.settings.driveFolderId;
-  const meta = {name:'calai-data.json', mimeType:'application/json', ...(folderId ? {parents:[folderId]} : {})};
+  const fileName = getDriveFileName();
+  const meta = {name: fileName, mimeType:'application/json', ...(folderId ? {parents:[folderId]} : {})};
   try {
     if (state.settings.driveFileId) {
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${state.settings.driveFileId}?uploadType=media`, {
@@ -402,7 +408,8 @@ async function driveLoad() {
     let fileId = state.settings.driveFileId;
     if (!fileId) {
       const folderQ = state.settings.driveFolderId ? ` and '${state.settings.driveFolderId}' in parents` : '';
-      const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='calai-data.json'${folderQ}&fields=files(id)`, {
+      const fileName = getDriveFileName();
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${fileName}'${folderQ}&fields=files(id)`, {
         headers: {'Authorization':'Bearer '+driveToken}
       });
       const data = await r.json();
@@ -417,7 +424,11 @@ async function driveLoad() {
       state.log = {...state.log, ...remote.log};
       state.preps = remote.preps || state.preps;
       state.customFoods = remote.customFoods || state.customFoods;
-      state.settings = {...state.settings, ...remote.settings, driveFileId: fileId};
+      // Merge settings but never overwrite local keys with empty remote values
+      const merged = {...state.settings, ...remote.settings, driveFileId: fileId};
+      if (!remote.settings?.apiKey) merged.apiKey = state.settings.apiKey;
+      if (!remote.settings?.googleClientId) merged.googleClientId = state.settings.googleClientId;
+      state.settings = merged;
       save();
       toast('↓ Synced from Drive');
     }
