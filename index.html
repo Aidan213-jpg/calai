@@ -494,27 +494,21 @@ Example: {"name":"Chicken & Rice Bowls","emoji":"🍱","desc":"Lean protein meal
   return JSON.parse(extractJSON(t2));
 }
 
-// ─── USDA FOOD SEARCH ────────────────────────────────────────────
-async function searchUSDA(query) {
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=8&api_key=${USDA_KEY}`;
-  const r = await fetch(url);
-  const data = await r.json();
-  return (data.foods||[]).map(f => {
-    const get = (n) => (f.foodNutrients||[]).find(x=>x.nutrientName===n)?.value||0;
-    const cal = Math.round(get('Energy'));
-    const protein = round1(get('Protein'));
-    const carbs = round1(get('Carbohydrate, by difference'));
-    const fat = round1(get('Total lipid (fat)'));
-    return {
-      name: f.description,
-      brand: f.brandOwner||'',
-      emoji: guessEmoji(f.description),
-      cal, protein, carbs, fat,
-      qty: 1,
-      unit: f.servingSizeUnit||'serving',
-      fdcId: f.fdcId
-    };
-  });
+// ─── AI FOOD SEARCH ──────────────────────────────────────────────
+async function searchFoodsAI(query) {
+  const sys = `You are a food nutrition database. The user searches for a food.
+Return ONLY a JSON array of 6 realistic food variations for "${query}".
+Include common serving sizes people actually use. Each item: {name, emoji, cal, protein, carbs, fat, qty, unit, brand}.
+brand is optional (use for packaged foods). All nutrition values are per one serving (qty=1).
+Be specific with serving sizes — e.g. "1 cup", "1 piece", "100g", "1 tbsp".
+Example for "chicken breast":
+[
+  {"name":"Grilled Chicken Breast","emoji":"🍗","cal":165,"protein":31,"carbs":0,"fat":3.6,"qty":1,"unit":"breast (174g)","brand":""},
+  {"name":"Rotisserie Chicken Breast","emoji":"🍗","cal":190,"protein":29,"carbs":0,"fat":8,"qty":1,"unit":"piece","brand":""},
+  {"name":"Chicken Breast, Baked","emoji":"🍗","cal":142,"protein":27,"carbs":0,"fat":3.1,"qty":100,"unit":"g","brand":""}
+]`;
+  const result = await callClaude([{role:'user', content:`Search for: ${query}`}], sys);
+  return JSON.parse(extractJSON(result));
 }
 
 function guessEmoji(name) {
@@ -959,9 +953,8 @@ function switchAddTab(tab, el) {
 function renderSearchTab() {
   return `
   <div class="input-row" style="margin-bottom:12px">
-    <input class="input" id="food-search" placeholder="Search foods... (e.g. chicken breast)" 
-      onkeydown="if(event.key==='Enter')doFoodSearch()"
-      oninput="clearTimeout(window._st);window._st=setTimeout(doFoodSearch,600)">
+    <input class="input" id="food-search" placeholder="e.g. chicken breast, greek yogurt..."
+      onkeydown="if(event.key==='Enter')doFoodSearch()">
     <button class="btn btn-primary btn-sm" onclick="doFoodSearch()">Search</button>
   </div>
   <div id="search-status" class="text-xs text-muted" style="margin-bottom:8px"></div>
@@ -979,18 +972,18 @@ async function doFoodSearch() {
   const status = document.getElementById('search-status');
   const results = document.getElementById('search-results');
   if (!status || !results) return;
-  status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Searching...</div>';
+  status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Searching with AI...</div>';
   results.innerHTML = '';
   try {
-    const foods = await searchUSDA(q);
-    status.textContent = foods.length ? `${foods.length} results` : 'No results';
+    const foods = await searchFoodsAI(q);
+    status.textContent = `${foods.length} results for "${q}"`;
     results.innerHTML = foods.map(f => `
       <div class="search-result" onclick='openServingPicker(${JSON.stringify(f).replace(/'/g,"&apos;")})'>
-        <div class="search-result-name">${f.emoji} ${f.name}</div>
-        <div class="search-result-meta">${f.cal} kcal · P:${f.protein}g C:${f.carbs}g F:${f.fat}g${f.brand?' · '+f.brand:''}</div>
+        <div class="search-result-name">${f.emoji||'🍽️'} ${f.name}${f.brand?' <span style="color:var(--text3);font-weight:400;font-size:12px">· '+f.brand+'</span>':''}</div>
+        <div class="search-result-meta">${f.cal} kcal · P:${f.protein}g · C:${f.carbs}g · F:${f.fat}g · ${f.qty} ${f.unit}</div>
       </div>`).join('');
   } catch(e) {
-    status.textContent = 'Search failed: ' + e.message;
+    status.innerHTML = `<span style="color:var(--red)">⚠️ ${e.message}</span>`;
   }
 }
 
