@@ -425,6 +425,11 @@ async function driveLoad() {
 }
 
 // ─── CLAUDE API ──────────────────────────────────────────────────
+function extractJSON(text) {
+  // Strip markdown code blocks if present
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+}
+
 async function callClaude(messages, system='') {
   const key = state.settings.apiKey;
   if (!key) { toast('⚠️ Add your Anthropic API key in Settings'); throw new Error('no key'); }
@@ -461,7 +466,7 @@ Example: [{"name":"Grilled Chicken Breast","emoji":"🍗","cal":165,"protein":31
     content: [{type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
               {type:'text',text:'What food items are in this image? Return JSON array.'}]
   }], sys);
-  return JSON.parse(text.trim());
+  return JSON.parse(extractJSON(text));
 }
 
 async function parseTextToFoods(text) {
@@ -471,7 +476,7 @@ All nutrition per single serving (multiply by qty for total). Estimate realistic
 Example input: "I had 2 eggs and a bowl of oatmeal with honey"
 Example output: [{"name":"Scrambled Eggs","emoji":"🥚","cal":74,"protein":6,"carbs":0.4,"fat":5,"qty":2,"unit":"egg"},{"name":"Oatmeal with Honey","emoji":"🍯","cal":180,"protein":5,"carbs":34,"fat":3,"qty":1,"unit":"bowl"}]`;
   const text2 = await callClaude([{role:'user',content:text}], sys);
-  return JSON.parse(text2.trim());
+  return JSON.parse(extractJSON(text2));
 }
 
 async function parseMealPrep(text) {
@@ -480,7 +485,7 @@ Return ONLY a JSON object: {name, emoji, desc, servings, notes, foods:[{name,emo
 The foods array should represent nutrition for ONE serving.
 Example: {"name":"Chicken & Rice Bowls","emoji":"🍱","desc":"Lean protein meal prep","servings":5,"notes":"Store in fridge 4 days","foods":[{"name":"Grilled Chicken","emoji":"🍗","cal":220,"protein":42,"carbs":0,"fat":4.5,"qty":1,"unit":"piece"},{"name":"Brown Rice","emoji":"🍚","cal":216,"protein":4.5,"carbs":45,"fat":1.8,"qty":1,"unit":"cup"}]}`;
   const t2 = await callClaude([{role:'user',content:text}], sys);
-  return JSON.parse(t2.trim());
+  return JSON.parse(extractJSON(t2));
 }
 
 // ─── USDA FOOD SEARCH ────────────────────────────────────────────
