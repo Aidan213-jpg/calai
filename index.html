@@ -212,6 +212,29 @@ textarea.input{resize:none;line-height:1.5}
 
 /* PILL */
 .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:var(--s3);color:var(--text2)}
+
+/* WATER TRACKER */
+.water-drops{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.drop{width:32px;height:32px;border-radius:50%;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .15s;background:var(--s3)}
+.drop.filled{background:#1e3a5f;border-color:#60a5fa}
+
+/* CHART */
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:80px;margin:8px 0}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:3px;transition:height .4s ease;background:var(--accent)}
+.bar-label{font-size:10px;color:var(--text3);text-align:center}
+.bar-val{font-size:9px;color:var(--text2);text-align:center}
+
+/* WEIGHT */
+.weight-entry{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.weight-entry:last-child{border-bottom:none}
+
+/* STREAK */
+.streak-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;background:rgba(251,191,36,.12);color:#fbbf24}
+
+/* SUGGESTION CARD */
+.suggestion{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
+.suggestion:hover{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -267,7 +290,12 @@ let state = {
   selectedDate: todayStr(),
   log: {},        // { "2026-05-27": [ {id, meal, name, emoji, cal, protein, carbs, fat, qty, unit} ] }
   preps: [],      // [ {id, name, emoji, desc, foods, notes, servings} ]
-  customFoods: [], // [ {id, name, cal, protein, carbs, fat, serving, unit, emoji} ]
+  customFoods: [],
+  water: {},      // { "2026-05-27": 6 }  glasses per day
+  weights: [],    // [ {date, weight} ]
+  notes: {},      // { "2026-05-27": "felt good today" }
+  favorites: [],  // [ food objects ]
+  templates: [],  // same structure as preps but single-meal
   settings: {
     apiKey: '',
     googleClientId: '',
@@ -297,6 +325,23 @@ function formatDate(str) {
   return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function calcStreak() {
+  let streak = 0;
+  const d = new Date();
+  // Don't penalise if today has no log yet
+  const todayHasLog = dayLog(todayStr()).length > 0;
+  if (!todayHasLog) d.setDate(d.getDate() - 1);
+  while (true) {
+    const s = d.toISOString().split('T')[0];
+    if (dayLog(s).length > 0) { streak++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return streak;
+}
+
+function getWater(date) { return state.water[date] || 0; }
+function setWater(date, val) { state.water[date] = Math.max(0, val); save(); render(); }
 function toast(msg, dur=2500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -575,14 +620,20 @@ function renderToday() {
   const foods = dayLog(state.selectedDate);
   const meals = {Breakfast:[],Lunch:[],Dinner:[],Snacks:[]};
   foods.forEach(f => { (meals[f.meal] || meals.Snacks).push(f); });
-
   const ringColor = pct >= 1 ? 'var(--orange)' : 'var(--accent)';
+  const streak = calcStreak();
+  const water = getWater(state.selectedDate);
+  const waterGoal = 8;
+  const note = state.notes[state.selectedDate] || '';
 
   return `
   <div class="view-header">
     <div>
       <h1>${formatDate(state.selectedDate)}</h1>
-      <div class="sub">${s.name ? 'Hey '+s.name+'!' : 'Track your nutrition'}</div>
+      <div class="flex gap-8 items-center" style="margin-top:4px">
+        ${streak > 0 ? `<span class="streak-badge">🔥 ${streak} day streak</span>` : ''}
+        <span class="text-xs text-muted">${s.name ? s.name : ''}</span>
+      </div>
     </div>
     <div class="flex gap-8">
       <button class="btn btn-ghost btn-sm" onclick="changeDate(-1)">‹ Prev</button>
@@ -596,8 +647,7 @@ function renderToday() {
         <g transform="rotate(-90, 100, 100)">
           <circle class="ring-track" cx="100" cy="100" r="${R}" stroke-width="14"/>
           <circle class="ring-fill" cx="100" cy="100" r="${R}" stroke-width="14"
-            stroke="${ringColor}"
-            stroke-dasharray="${C}" stroke-dashoffset="${offset}"
+            stroke="${ringColor}" stroke-dasharray="${C}" stroke-dashoffset="${offset}"
             style="transition:stroke-dashoffset .6s ease"/>
         </g>
         <text x="100" y="90" font-family="-apple-system,sans-serif" font-size="28" font-weight="800" fill="var(--text)" text-anchor="middle" dominant-baseline="middle">${Math.round(totals.cal)}</text>
@@ -609,6 +659,40 @@ function renderToday() {
     ${renderMacroBar('Carbs', totals.carbs, s.carbGoal||200, '#fbbf24', 'g')}
     ${renderMacroBar('Fat', totals.fat, s.fatGoal||65, '#f87171', 'g')}
   </div>
+
+  <!-- Water Tracker -->
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span style="font-weight:700;font-size:14px">💧 Water</span>
+      <span class="text-sm text-muted">${water} / ${waterGoal} glasses</span>
+    </div>
+    <div class="water-drops">
+      ${Array.from({length:waterGoal},(_,i)=>`
+        <div class="drop ${i<water?'filled':''}" onclick="setWater('${state.selectedDate}',${i<water?i:i+1})">
+          ${i<water?'💧':'○'}
+        </div>`).join('')}
+      <div class="drop" onclick="setWater('${state.selectedDate}',${water+1})" style="background:var(--s2);border-style:dashed">+</div>
+    </div>
+  </div>
+
+  <!-- AI Meal Suggestions -->
+  <button class="btn btn-ghost btn-full" style="margin-top:12px" onclick="openModal('suggestions')">
+    ✨ What should I eat next?
+  </button>
+
+  <!-- Favorites quick-add -->
+  ${state.favorites.length ? `
+  <div style="margin-top:16px">
+    <div class="meal-section-title" style="margin-bottom:8px">⭐ Favorites</div>
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+      ${state.favorites.map(f=>`
+        <div onclick='quickAddFav(${JSON.stringify(f).replace(/'/g,"&apos;")})' style="flex-shrink:0;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;cursor:pointer;min-width:100px;text-align:center">
+          <div style="font-size:22px">${f.emoji||'🍽️'}</div>
+          <div style="font-size:11px;font-weight:600;margin-top:2px">${f.name.length>14?f.name.slice(0,14)+'…':f.name}</div>
+          <div style="font-size:10px;color:var(--text2)">${f.cal} kcal</div>
+        </div>`).join('')}
+    </div>
+  </div>` : ''}
 
   ${Object.entries(meals).map(([meal, items]) => {
     if (!items.length) return '';
@@ -631,6 +715,14 @@ function renderToday() {
     <h3>Nothing logged yet</h3>
     <p>Tap + to add your first meal</p>
   </div>` : ''}
+
+  <!-- Daily Notes -->
+  <div class="card" style="margin-top:16px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">📝 Daily Note</div>
+    <textarea class="input" rows="2" placeholder="How are you feeling? Energy levels, sleep, etc..."
+      oninput="state.notes['${state.selectedDate}']=this.value;save()">${note}</textarea>
+  </div>
+
   <div style="height:100px"></div>`;
 }
 
@@ -646,6 +738,25 @@ function renderMacroBar(label, val, goal, color, unit) {
       <div class="macro-bar-fill" style="width:${pct}%;background:${color}"></div>
     </div>
   </div>`;
+}
+
+function isFavorite(name) { return state.favorites.some(f=>f.name===name); }
+function toggleFavorite(food) {
+  if (isFavorite(food.name)) {
+    state.favorites = state.favorites.filter(f=>f.name!==food.name);
+    toast('Removed from favorites');
+  } else {
+    state.favorites.push({...food});
+    toast('⭐ Added to favorites!');
+  }
+  save(); render();
+}
+function quickAddFav(food) {
+  const date = state.selectedDate;
+  if (!state.log[date]) state.log[date] = [];
+  state.log[date].push({...food, id:uid(), meal:'Snacks'});
+  save(); render();
+  toast(`✓ Added ${food.name}`);
 }
 
 function renderFoodItem(f, deletable=false) {
@@ -664,6 +775,7 @@ function renderFoodItem(f, deletable=false) {
     </div>
     <div class="flex gap-8 items-center">
       <span class="food-cal">${totalCal}</span>
+      <button class="icon-btn" onclick='toggleFavorite(${JSON.stringify(f).replace(/'/g,"&apos;")})' title="Favorite" style="color:${isFavorite(f.name)?'#fbbf24':'var(--text3)'}">⭐</button>
       ${deletable ? `<button class="icon-btn" onclick="removeFood('${f.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>` : ''}
@@ -687,14 +799,96 @@ function removeFood(id) {
 // ── HISTORY VIEW ─────────────────────────────────────────────────
 function renderHistory() {
   const dates = Object.keys(state.log).filter(d=>state.log[d]?.length).sort().reverse();
+  const s = state.settings;
+
+  // Last 7 days for chart
+  const last7 = [];
+  for (let i=6; i>=0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().split('T')[0];
+    last7.push({date:ds, cal: Math.round(dayTotals(ds).cal), label: d.toLocaleDateString('en-US',{weekday:'short'})});
+  }
+  const maxCal = Math.max(...last7.map(d=>d.cal), s.calorieGoal||2000);
+
+  // Weight chart data
+  const recentWeights = [...state.weights].sort((a,b)=>a.date.localeCompare(b.date)).slice(-10);
+
+  // Total macros this week
+  const weekTotals = last7.reduce((acc,d)=>{
+    const t = dayTotals(d.date);
+    acc.protein += t.protein; acc.carbs += t.carbs; acc.fat += t.fat;
+    return acc;
+  }, {protein:0,carbs:0,fat:0});
+  const totalMacroG = weekTotals.protein + weekTotals.carbs + weekTotals.fat;
+  const pieP = totalMacroG ? (weekTotals.protein/totalMacroG*100).toFixed(0) : 33;
+  const pieC = totalMacroG ? (weekTotals.carbs/totalMacroG*100).toFixed(0) : 34;
+  const pieF = totalMacroG ? (weekTotals.fat/totalMacroG*100).toFixed(0) : 33;
+
   return `
-  <div class="view-header"><h1>History</h1></div>
+  <div class="view-header">
+    <h1>History</h1>
+    <button class="btn btn-primary btn-sm" onclick="openModal('weeklySummary')">✨ AI Summary</button>
+  </div>
+
+  <!-- 7-day calorie chart -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Last 7 Days</div>
+    <div class="bar-chart">
+      ${last7.map(d=>{
+        const h = d.cal ? Math.round((d.cal/maxCal)*100) : 3;
+        const color = d.cal > (s.calorieGoal||2000) ? 'var(--orange)' : d.date===todayStr() ? 'var(--green)' : 'var(--accent)';
+        return `<div class="bar-col">
+          <div class="bar-val">${d.cal||''}</div>
+          <div class="bar-fill" style="height:${h}%;background:${color}"></div>
+          <div class="bar-label">${d.label}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;gap:6px;font-size:11px;color:var(--text2)">
+      <span style="color:var(--accent)">■</span> On track &nbsp;
+      <span style="color:var(--green)">■</span> Today &nbsp;
+      <span style="color:var(--orange)">■</span> Over goal
+    </div>
+  </div>
+
+  <!-- Macro pie this week -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Weekly Macro Split</div>
+    <div class="flex items-center gap-12">
+      ${renderMacroPie(weekTotals.protein, weekTotals.carbs, weekTotals.fat)}
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:12px;height:12px;border-radius:50%;background:#60a5fa;flex-shrink:0"></span><span class="text-sm">Protein ${pieP}% · ${Math.round(weekTotals.protein)}g</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:12px;height:12px;border-radius:50%;background:#fbbf24;flex-shrink:0"></span><span class="text-sm">Carbs ${pieC}% · ${Math.round(weekTotals.carbs)}g</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:50%;background:#f87171;flex-shrink:0"></span><span class="text-sm">Fat ${pieF}% · ${Math.round(weekTotals.fat)}g</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weight Log -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Weight Log</div>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('logWeight')">+ Log Weight</button>
+    </div>
+    ${!recentWeights.length ? `<div class="text-sm text-muted text-center" style="padding:12px 0">No weight entries yet</div>` :
+    recentWeights.slice().reverse().slice(0,5).map(w=>`
+      <div class="weight-entry">
+        <span class="text-sm text-muted">${formatDate(w.date)}</span>
+        <div class="flex items-center gap-8">
+          <span style="font-size:16px;font-weight:700">${w.weight} lbs</span>
+          <button class="icon-btn" onclick="removeWeight('${w.date}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>`).join('')}
+  </div>
+
+  <!-- Daily log list -->
   ${!dates.length ? `
   <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
   <h3>No history yet</h3><p>Your logged days will appear here</p></div>` :
   dates.map(d => {
     const t = dayTotals(d);
-    const s = state.settings;
     const pct = clamp(t.cal/(s.calorieGoal||2000),0,1);
     const barColor = pct>1?'var(--orange)':pct>.9?'var(--green)':'var(--accent)';
     return `
@@ -704,17 +898,43 @@ function renderHistory() {
         <span class="history-day-cal">${Math.round(t.cal)} kcal</span>
       </div>
       <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${pct*100}%;background:${barColor};border-radius:3px;transition:width .4s ease"></div>
+        <div style="height:100%;width:${pct*100}%;background:${barColor};border-radius:3px"></div>
       </div>
       <div class="flex gap-12 mt-8 text-xs text-muted">
-        <span>🥩 P: ${round1(t.protein)}g</span>
-        <span>🌾 C: ${round1(t.carbs)}g</span>
-        <span>🧈 F: ${round1(t.fat)}g</span>
-        <span>${state.log[d].length} items</span>
+        <span>🥩 P:${round1(t.protein)}g</span>
+        <span>🌾 C:${round1(t.carbs)}g</span>
+        <span>🧈 F:${round1(t.fat)}g</span>
+        ${state.weights.find(w=>w.date===d)?`<span>⚖️ ${state.weights.find(w=>w.date===d).weight}lbs</span>`:''}
       </div>
     </div>`;
   }).join('')}
   <div style="height:100px"></div>`;
+}
+
+function renderMacroPie(p, c, f) {
+  const total = p + c + f || 1;
+  const pP = p/total, pC = c/total, pF = f/total;
+  const r = 40, cx = 50, cy = 50;
+  function slice(start, end, color) {
+    if (end - start < 0.001) return '';
+    const s = start * 2 * Math.PI - Math.PI/2;
+    const e = end * 2 * Math.PI - Math.PI/2;
+    const x1 = cx + r*Math.cos(s), y1 = cy + r*Math.sin(s);
+    const x2 = cx + r*Math.cos(e), y2 = cy + r*Math.sin(e);
+    const large = (end-start) > 0.5 ? 1 : 0;
+    return `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${color}" opacity="0.9"/>`;
+  }
+  return `<svg width="100" height="100" viewBox="0 0 100 100" style="flex-shrink:0">
+    ${slice(0, pP, '#60a5fa')}
+    ${slice(pP, pP+pC, '#fbbf24')}
+    ${slice(pP+pC, 1, '#f87171')}
+    <circle cx="${cx}" cy="${cy}" r="18" fill="var(--s1)"/>
+  </svg>`;
+}
+
+function removeWeight(date) {
+  state.weights = state.weights.filter(w=>w.date!==date);
+  save(); render();
 }
 
 // ── MEAL PREPS VIEW ──────────────────────────────────────────────
@@ -722,7 +942,10 @@ function renderMealPreps() {
   return `
   <div class="view-header">
     <h1>Meal Preps</h1>
-    <button class="btn btn-primary btn-sm" onclick="openNewPrepModal()">+ New Prep</button>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" onclick="openModal('recipeBuilder')">🍳 Recipe</button>
+      <button class="btn btn-primary btn-sm" onclick="openNewPrepModal()">+ New Prep</button>
+    </div>
   </div>
   ${!state.preps.length ? `
   <div class="empty">
@@ -924,6 +1147,24 @@ function openModal(type, data={}) {
     title.textContent = '🧮 Goal Calculator';
     footer.style.display = 'none';
     body.innerHTML = renderTDEEModal();
+  } else if (type === 'logWeight') {
+    title.textContent = '⚖️ Log Weight';
+    footer.style.display = 'none';
+    body.innerHTML = renderLogWeightModal();
+  } else if (type === 'weeklySummary') {
+    title.textContent = '✨ Weekly AI Summary';
+    footer.style.display = 'none';
+    body.innerHTML = renderWeeklySummaryModal();
+    generateWeeklySummary();
+  } else if (type === 'suggestions') {
+    title.textContent = '✨ Meal Suggestions';
+    footer.style.display = 'none';
+    body.innerHTML = renderSuggestionsModal();
+    generateSuggestions();
+  } else if (type === 'recipeBuilder') {
+    title.textContent = '🍳 Recipe Builder';
+    footer.style.display = 'none';
+    body.innerHTML = renderRecipeBuilderModal();
   }
 }
 
@@ -944,8 +1185,9 @@ function renderAddFoodModal() {
   return `
   <div class="tabs">
     <button class="tab active" onclick="switchAddTab('search',this)">🔍 Search</button>
-    <button class="tab" onclick="switchAddTab('photo',this)">📷 Photo AI</button>
-    <button class="tab" onclick="switchAddTab('chat',this)">💬 AI Chat</button>
+    <button class="tab" onclick="switchAddTab('barcode',this)">📊 Barcode</button>
+    <button class="tab" onclick="switchAddTab('photo',this)">📷 Photo</button>
+    <button class="tab" onclick="switchAddTab('chat',this)">💬 Chat</button>
   </div>
   <div id="add-tab-content"></div>`;
 }
@@ -959,6 +1201,7 @@ function switchAddTab(tab, el) {
   el.classList.add('active');
   const c = document.getElementById('add-tab-content');
   if (tab==='search') c.innerHTML = renderSearchTab();
+  if (tab==='barcode') c.innerHTML = renderBarcodeTab();
   if (tab==='photo') c.innerHTML = renderPhotoTab();
   if (tab==='chat') c.innerHTML = renderChatTab();
 }
@@ -1046,6 +1289,121 @@ function confirmAddFood(food) {
   toast(`✓ Added ${food.name}`);
   closeModal();
   render();
+}
+
+// ── BARCODE TAB ──────────────────────────────────────────────────
+function renderBarcodeTab() {
+  return `
+  <div class="text-center" style="margin-bottom:12px">
+    <button class="btn btn-primary btn-full" onclick="startBarcodeCamera()">📷 Scan Barcode</button>
+  </div>
+  <div class="text-center text-muted text-xs" style="margin:8px 0">— or enter manually —</div>
+  <div class="input-row" style="margin-bottom:12px">
+    <input class="input" id="barcode-input" placeholder="Enter barcode number..." type="number" onkeydown="if(event.key==='Enter')lookupBarcode()">
+    <button class="btn btn-primary btn-sm" onclick="lookupBarcode()">Look up</button>
+  </div>
+  <video id="barcode-video" style="display:none;width:100%;border-radius:var(--r);max-height:200px;object-fit:cover" autoplay playsinline></video>
+  <div id="barcode-status" style="margin-top:10px"></div>
+  <div id="barcode-result"></div>
+  <div class="label" style="margin-top:12px">Meal</div>
+  <select class="input" id="barcode-meal">
+    <option>Breakfast</option><option selected>Lunch</option><option>Dinner</option><option>Snacks</option>
+  </select>`;
+}
+
+let _barcodeStream = null;
+
+async function startBarcodeCamera() {
+  const video = document.getElementById('barcode-video');
+  const status = document.getElementById('barcode-status');
+  if (!video) return;
+  try {
+    _barcodeStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = _barcodeStream;
+    video.style.display = 'block';
+    if (status) status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Point camera at barcode...</div>';
+
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
+      const scan = async () => {
+        if (!document.getElementById('barcode-video')) { stopBarcodeCamera(); return; }
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length) {
+            stopBarcodeCamera();
+            const barcode = codes[0].rawValue;
+            if (status) status.innerHTML = `<span style="color:var(--green)">✓ Scanned: ${barcode}</span>`;
+            await lookupBarcodeValue(barcode);
+            return;
+          }
+        } catch(e) {}
+        requestAnimationFrame(scan);
+      };
+      video.onloadeddata = () => requestAnimationFrame(scan);
+    } else {
+      if (status) status.innerHTML = `<div class="text-xs text-muted">BarcodeDetector not supported on this browser. Enter barcode manually above.</div>`;
+    }
+  } catch(e) {
+    if (status) status.innerHTML = `<span style="color:var(--red)">⚠️ Camera access denied</span>`;
+  }
+}
+
+function stopBarcodeCamera() {
+  if (_barcodeStream) { _barcodeStream.getTracks().forEach(t=>t.stop()); _barcodeStream = null; }
+  const v = document.getElementById('barcode-video');
+  if (v) v.style.display = 'none';
+}
+
+async function lookupBarcode() {
+  const val = document.getElementById('barcode-input')?.value?.trim();
+  if (!val) { toast('Enter a barcode number'); return; }
+  await lookupBarcodeValue(val);
+}
+
+async function lookupBarcodeValue(barcode) {
+  const status = document.getElementById('barcode-status');
+  const result = document.getElementById('barcode-result');
+  if (status) status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Looking up product...</div>';
+  if (result) result.innerHTML = '';
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+    const data = await r.json();
+    if (data.status === 1 && data.product) {
+      const p = data.product;
+      const n = p.nutriments || {};
+      const food = {
+        name: p.product_name || p.abbreviated_product_name || 'Unknown Product',
+        brand: p.brands || '',
+        emoji: guessEmoji(p.product_name || ''),
+        cal: Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+        protein: round1(n.proteins_100g || 0),
+        carbs: round1(n.carbohydrates_100g || 0),
+        fat: round1(n.fat_100g || 0),
+        qty: 1,
+        unit: '100g'
+      };
+      if (status) status.innerHTML = `<span style="color:var(--green)">✓ Found: ${food.name}</span>`;
+      if (result) result.innerHTML = `
+        <div class="search-result" style="margin-top:8px" onclick='openServingPicker(${JSON.stringify(food).replace(/'/g,"&apos;")})'>
+          <div class="search-result-name">${food.emoji} ${food.name}${food.brand?' · <span style="color:var(--text3);font-size:12px">'+food.brand+'</span>':''}</div>
+          <div class="search-result-meta">${food.cal} kcal · P:${food.protein}g · C:${food.carbs}g · F:${food.fat}g per 100g</div>
+        </div>`;
+    } else {
+      // Not in Open Food Facts — fall back to Claude
+      if (status) status.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner" style="width:14px;height:14px"></div> Not in database — asking AI...</div>';
+      const foods = await searchFoodsAI('product with barcode ' + barcode);
+      if (result && foods.length) {
+        if (status) status.innerHTML = `<span style="color:var(--text2)">AI estimate (barcode not in database)</span>`;
+        result.innerHTML = foods.slice(0,3).map(f=>`
+          <div class="search-result" style="margin-top:6px" onclick='openServingPicker(${JSON.stringify(f).replace(/'/g,"&apos;")})'>
+            <div class="search-result-name">${f.emoji} ${f.name}</div>
+            <div class="search-result-meta">${f.cal} kcal · P:${f.protein}g · C:${f.carbs}g · F:${f.fat}g</div>
+          </div>`).join('');
+      }
+    }
+  } catch(e) {
+    if (status) status.innerHTML = `<span style="color:var(--red)">⚠️ Lookup failed: ${e.message}</span>`;
+  }
 }
 
 // ── PHOTO TAB ────────────────────────────────────────────────────
@@ -1342,6 +1700,166 @@ function saveManualPrep() {
   state.preps.push(prep);
   save(); closeModal(); render();
   toast('✓ Meal prep saved!');
+}
+
+function renderLogWeightModal() {
+  return `
+  <div class="label">Weight (lbs)</div>
+  <input class="input" type="number" id="weight-input" placeholder="e.g. 185.5" step="0.1" style="margin-bottom:12px" autofocus>
+  <div class="label">Date</div>
+  <input class="input" type="date" id="weight-date" value="${todayStr()}" style="margin-bottom:16px">
+  <button class="btn btn-primary btn-full" onclick="saveWeight()">Save</button>`;
+}
+
+function saveWeight() {
+  const w = parseFloat(document.getElementById('weight-input')?.value);
+  const d = document.getElementById('weight-date')?.value || todayStr();
+  if (!w || w < 50 || w > 700) { toast('Enter a valid weight'); return; }
+  state.weights = state.weights.filter(x=>x.date!==d);
+  state.weights.push({date:d, weight:w});
+  state.weights.sort((a,b)=>a.date.localeCompare(b.date));
+  save(); closeModal(); render();
+  toast('✓ Weight logged!');
+}
+
+function renderWeeklySummaryModal() {
+  return `<div id="summary-content" class="text-sm" style="line-height:1.7">
+    <div class="flex gap-8 items-center"><div class="spinner"></div> Generating your weekly summary...</div>
+  </div>`;
+}
+
+async function generateWeeklySummary() {
+  const last7 = [];
+  for (let i=6; i>=0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().split('T')[0];
+    const t = dayTotals(ds);
+    const w = state.weights.find(x=>x.date===ds);
+    last7.push({date:ds, ...t, weight:w?.weight||null, logged: dayLog(ds).length > 0, note: state.notes[ds]||''});
+  }
+  const s = state.settings;
+  const prompt = `Here is my nutrition data for the past 7 days:
+${JSON.stringify(last7, null, 2)}
+My goals: ${s.calorieGoal} kcal, ${s.proteinGoal}g protein, ${s.carbGoal}g carbs, ${s.fatGoal}g fat.
+Write a friendly, motivating weekly summary in 3-4 short paragraphs. Cover: how I did vs my goals, any patterns you notice, what I did well, and 2-3 specific actionable tips for next week. Keep it personal and encouraging.`;
+  const sys = 'You are a friendly nutrition coach. Write in plain conversational text, no markdown headers or bullet points. Keep it warm and motivating.';
+  try {
+    const result = await callClaude([{role:'user',content:prompt}], sys);
+    const el = document.getElementById('summary-content');
+    if (el) el.innerHTML = result.split('\n\n').map(p=>`<p style="margin-bottom:12px">${p}</p>`).join('');
+  } catch(e) {
+    const el = document.getElementById('summary-content');
+    if (el) el.innerHTML = `<span style="color:var(--red)">⚠️ ${e.message}</span>`;
+  }
+}
+
+function renderSuggestionsModal() {
+  const t = dayTotals(state.selectedDate);
+  const s = state.settings;
+  const remCal = Math.max(0, (s.calorieGoal||2000) - t.cal);
+  const remP = Math.max(0, (s.proteinGoal||150) - t.protein);
+  return `
+  <div class="card" style="margin-bottom:12px">
+    <div class="text-xs text-muted" style="margin-bottom:4px">Remaining today</div>
+    <div class="flex gap-12">
+      <span style="color:var(--accent);font-weight:700">${Math.round(remCal)} kcal</span>
+      <span style="color:#60a5fa">${Math.round(remP)}g protein left</span>
+    </div>
+  </div>
+  <div id="suggestions-content">
+    <div class="flex gap-8 items-center"><div class="spinner"></div> Getting suggestions...</div>
+  </div>`;
+}
+
+async function generateSuggestions() {
+  const t = dayTotals(state.selectedDate);
+  const s = state.settings;
+  const remCal = Math.max(0, (s.calorieGoal||2000) - t.cal);
+  const remP = Math.max(0, (s.proteinGoal||150) - t.protein);
+  const remC = Math.max(0, (s.carbGoal||200) - t.carbs);
+  const remF = Math.max(0, (s.fatGoal||65) - t.fat);
+  const sys = `You are a nutrition coach. Suggest 5 specific meal/snack ideas that fit within the remaining macros.
+Return ONLY a JSON array: [{name, emoji, description, cal, protein, carbs, fat}]
+description is 1 short sentence. Suggestions should be practical, realistic foods.`;
+  try {
+    const result = await callClaude([{role:'user',content:`Remaining calories: ${Math.round(remCal)}, protein: ${Math.round(remP)}g, carbs: ${Math.round(remC)}g, fat: ${Math.round(remF)}g. Suggest meals.`}], sys);
+    const suggestions = JSON.parse(extractJSON(result));
+    const el = document.getElementById('suggestions-content');
+    if (el) el.innerHTML = suggestions.map(sg=>`
+      <div class="suggestion" onclick='addSuggestionToLog(${JSON.stringify(sg).replace(/'/g,"&apos;")})'>
+        <div class="flex items-center gap-8" style="margin-bottom:4px">
+          <span style="font-size:22px">${sg.emoji||'🍽️'}</span>
+          <div>
+            <div style="font-weight:700;font-size:14px">${sg.name}</div>
+            <div class="text-xs text-muted">${sg.description}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;flex-shrink:0">
+            <div style="color:var(--accent);font-weight:700">${sg.cal} kcal</div>
+            <div class="text-xs text-muted">P:${sg.protein}g</div>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    const el = document.getElementById('suggestions-content');
+    if (el) el.innerHTML = `<span style="color:var(--red)">⚠️ ${e.message}</span>`;
+  }
+}
+
+function addSuggestionToLog(sg) {
+  const date = state.selectedDate;
+  if (!state.log[date]) state.log[date] = [];
+  state.log[date].push({...sg, qty:1, unit:'serving', meal:'Snacks', id:uid()});
+  save(); closeModal(); render();
+  toast(`✓ Added ${sg.name}`);
+}
+
+function renderRecipeBuilderModal() {
+  return `
+  <div class="text-sm text-muted" style="margin-bottom:12px">Describe a recipe and I'll calculate nutrition per serving.</div>
+  <div class="label">Recipe Description</div>
+  <textarea class="input" id="recipe-input" rows="4" placeholder="e.g. Chicken stir fry with 2 chicken breasts, 1 cup brown rice, 2 cups broccoli, 2 tbsp soy sauce, 1 tbsp olive oil. Makes 3 servings." style="margin-bottom:12px"></textarea>
+  <button class="btn btn-primary btn-full" onclick="buildRecipe()" style="margin-bottom:12px">Calculate Nutrition</button>
+  <div id="recipe-result"></div>`;
+}
+
+async function buildRecipe() {
+  const input = document.getElementById('recipe-input')?.value?.trim();
+  if (!input) { toast('Describe your recipe'); return; }
+  const result = document.getElementById('recipe-result');
+  if (result) result.innerHTML = '<div class="flex gap-8 items-center"><div class="spinner"></div> Calculating...</div>';
+  const sys = `You are a recipe nutrition calculator. The user describes a recipe.
+Return ONLY a JSON object: {name, emoji, servings, notes, foods:[{name,emoji,cal,protein,carbs,fat,qty,unit}]}
+foods = ingredients per ONE serving. Calculate all values accurately based on the ingredients listed.`;
+  try {
+    const r = await callClaude([{role:'user',content:input}], sys);
+    const recipe = JSON.parse(extractJSON(r));
+    const totalCal = (recipe.foods||[]).reduce((s,f)=>s+(f.cal||0)*f.qty,0);
+    const totalP = (recipe.foods||[]).reduce((s,f)=>s+(f.protein||0)*f.qty,0);
+    if (result) result.innerHTML = `
+      <div class="card">
+        <div style="font-size:18px;font-weight:800;margin-bottom:4px">${recipe.emoji||'🍽️'} ${recipe.name}</div>
+        <div class="text-sm text-muted" style="margin-bottom:12px">${recipe.servings} servings</div>
+        <div class="nutrient-grid" style="margin-bottom:12px">
+          <div class="nutrient-cell"><div class="nutrient-val" style="color:var(--accent)">${Math.round(totalCal)}</div><div class="nutrient-label">Cal/serving</div></div>
+          <div class="nutrient-cell"><div class="nutrient-val" style="color:#60a5fa">${round1(totalP)}g</div><div class="nutrient-label">Protein</div></div>
+        </div>
+        ${(recipe.foods||[]).map(f=>`<div class="food-macros" style="margin-bottom:4px"><span>${f.emoji||''}${f.name}</span> <span class="text-muted">— ${Math.round((f.cal||0)*f.qty)} kcal</span></div>`).join('')}
+        <div class="flex gap-8 mt-12">
+          <button class="btn btn-primary" style="flex:1" onclick='saveRecipeAsPrep(${JSON.stringify(recipe).replace(/'/g,"&apos;")})'>Save as Meal Prep</button>
+        </div>
+      </div>`;
+  } catch(e) {
+    if (result) result.innerHTML = `<span style="color:var(--red)">⚠️ ${e.message}</span>`;
+  }
+}
+
+function saveRecipeAsPrep(recipe) {
+  recipe.id = uid();
+  recipe.desc = 'From Recipe Builder';
+  state.preps.push(recipe);
+  save(); closeModal();
+  setView('mealpreps');
+  toast('✓ Saved as meal prep!');
 }
 
 function renderTDEEModal() {
