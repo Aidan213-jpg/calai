@@ -306,7 +306,8 @@ let state = {
     carbGoal: 200,
     fatGoal: 65,
     driveFileId: null,
-    driveSynced: false
+    driveSynced: false,
+    waterGoal: 64
   }
 };
 
@@ -341,7 +342,8 @@ function calcStreak() {
 }
 
 function getWater(date) { return state.water[date] || 0; }
-function setWater(date, val) { state.water[date] = Math.max(0, val); save(); render(); }
+function setWater(date, val) { state.water[date] = Math.max(0, Math.round(val)); save(); render(); }
+function addWater(date, oz) { setWater(date, getWater(date) + oz); }
 function toast(msg, dur=2500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -373,9 +375,22 @@ function load() {
     const raw = localStorage.getItem('calai_state');
     if (raw) {
       const parsed = JSON.parse(raw);
-      state = { ...state, ...parsed };
+      // Deep merge: preserve default keys that may not exist in old saves
+      state = {
+        ...state,
+        ...parsed,
+        settings: { ...state.settings, ...(parsed.settings || {}) },
+        log: parsed.log || {},
+        preps: parsed.preps || [],
+        customFoods: parsed.customFoods || [],
+        water: parsed.water || {},
+        weights: parsed.weights || [],
+        notes: parsed.notes || {},
+        favorites: parsed.favorites || [],
+        templates: parsed.templates || [],
+      };
     }
-  } catch(e) {}
+  } catch(e) { console.warn('Load failed', e); }
 }
 
 // ─── GOOGLE DRIVE SYNC ───────────────────────────────────────────
@@ -623,7 +638,7 @@ function renderToday() {
   const ringColor = pct >= 1 ? 'var(--orange)' : 'var(--accent)';
   const streak = calcStreak();
   const water = getWater(state.selectedDate);
-  const waterGoal = 8;
+  const waterGoal = s.waterGoal || 64;
   const note = state.notes[state.selectedDate] || '';
 
   return `
@@ -662,16 +677,22 @@ function renderToday() {
 
   <!-- Water Tracker -->
   <div class="card" style="margin-top:12px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span style="font-weight:700;font-size:14px">💧 Water</span>
-      <span class="text-sm text-muted">${water} / ${waterGoal} glasses</span>
+      <span class="text-sm" style="color:${water>=waterGoal?'var(--green)':'var(--text2)'};font-weight:600">${water} / ${waterGoal} oz</span>
     </div>
-    <div class="water-drops">
-      ${Array.from({length:waterGoal},(_,i)=>`
-        <div class="drop ${i<water?'filled':''}" onclick="setWater('${state.selectedDate}',${i<water?i:i+1})">
-          ${i<water?'💧':'○'}
-        </div>`).join('')}
-      <div class="drop" onclick="setWater('${state.selectedDate}',${water+1})" style="background:var(--s2);border-style:dashed">+</div>
+    <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:10px">
+      <div style="height:100%;width:${Math.min(100,(water/waterGoal)*100)}%;background:var(--blue);border-radius:4px;transition:width .3s ease"></div>
+    </div>
+    <div class="flex gap-8" style="justify-content:center">
+      <button class="btn btn-ghost btn-sm" onclick="addWater('${state.selectedDate}',-8)" style="flex:1">−8 oz</button>
+      <button class="btn btn-ghost btn-sm" onclick="addWater('${state.selectedDate}',-16)" style="flex:1">−16 oz</button>
+      <button class="btn btn-primary btn-sm" onclick="addWater('${state.selectedDate}',8)" style="flex:1">+8 oz</button>
+      <button class="btn btn-primary btn-sm" onclick="addWater('${state.selectedDate}',16)" style="flex:1">+16 oz</button>
+    </div>
+    <div class="flex gap-8 items-center" style="margin-top:8px">
+      <input class="input" type="number" placeholder="Custom oz" id="water-custom-${state.selectedDate}" style="flex:1;padding:7px 10px" min="1" max="200">
+      <button class="btn btn-ghost btn-sm" onclick="addWater('${state.selectedDate}',+document.getElementById('water-custom-${state.selectedDate}').value||0)">Add</button>
     </div>
   </div>
 
@@ -868,18 +889,30 @@ function renderHistory() {
   <div class="card" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Weight Log</div>
-      <button class="btn btn-ghost btn-sm" onclick="openModal('logWeight')">+ Log Weight</button>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('logWeight')">+ Log Stats</button>
     </div>
-    ${!recentWeights.length ? `<div class="text-sm text-muted text-center" style="padding:12px 0">No weight entries yet</div>` :
+    ${!recentWeights.length ? `<div class="text-sm text-muted text-center" style="padding:12px 0">No entries yet — tap "+ Log Stats"</div>` :
     recentWeights.slice().reverse().slice(0,5).map(w=>`
-      <div class="weight-entry">
-        <span class="text-sm text-muted">${formatDate(w.date)}</span>
-        <div class="flex items-center gap-8">
-          <span style="font-size:16px;font-weight:700">${w.weight} lbs</span>
-          <button class="icon-btn" onclick="removeWeight('${w.date}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+      <div class="weight-entry" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <div class="flex items-center" style="justify-content:space-between;width:100%">
+          <span class="text-sm text-muted">${formatDate(w.date)}</span>
+          <div class="flex items-center gap-8">
+            ${w.weight ? `<span style="font-size:15px;font-weight:700">${w.weight} lbs</span>` : ''}
+            ${w.bf ? `<span class="text-sm text-muted">${w.bf}% BF</span>` : ''}
+            <button class="icon-btn" onclick="removeWeight('${w.date}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
         </div>
+        ${(w.chest||w.waist||w.hips||w.arm||w.thigh||w.neck) ? `
+        <div class="flex gap-8" style="flex-wrap:wrap">
+          ${w.chest?`<span class="text-xs text-muted">Chest: ${w.chest}"</span>`:''}
+          ${w.waist?`<span class="text-xs text-muted">Waist: ${w.waist}"</span>`:''}
+          ${w.hips?`<span class="text-xs text-muted">Hips: ${w.hips}"</span>`:''}
+          ${w.arm?`<span class="text-xs text-muted">Arm: ${w.arm}"</span>`:''}
+          ${w.thigh?`<span class="text-xs text-muted">Thigh: ${w.thigh}"</span>`:''}
+          ${w.neck?`<span class="text-xs text-muted">Neck: ${w.neck}"</span>`:''}
+        </div>` : ''}
       </div>`).join('')}
   </div>
 
@@ -1030,7 +1063,9 @@ function renderSettings() {
     <div class="label">Carbs (g)</div>
     <input class="input" type="number" value="${s.carbGoal||200}" oninput="state.settings.carbGoal=+this.value;save()" style="margin-bottom:10px">
     <div class="label">Fat (g)</div>
-    <input class="input" type="number" value="${s.fatGoal||65}" oninput="state.settings.fatGoal=+this.value;save()">
+    <input class="input" type="number" value="${s.fatGoal||65}" oninput="state.settings.fatGoal=+this.value;save()" style="margin-bottom:10px">
+    <div class="label">Daily Water Goal (oz)</div>
+    <input class="input" type="number" value="${s.waterGoal||64}" oninput="state.settings.waterGoal=+this.value;save()">
   </div>
 
   <div class="card" style="margin-bottom:12px">
@@ -1703,23 +1738,57 @@ function saveManualPrep() {
 }
 
 function renderLogWeightModal() {
+  const existing = state.weights.find(w=>w.date===todayStr()) || {};
   return `
-  <div class="label">Weight (lbs)</div>
-  <input class="input" type="number" id="weight-input" placeholder="e.g. 185.5" step="0.1" style="margin-bottom:12px" autofocus>
   <div class="label">Date</div>
-  <input class="input" type="date" id="weight-date" value="${todayStr()}" style="margin-bottom:16px">
+  <input class="input" type="date" id="weight-date" value="${todayStr()}" style="margin-bottom:12px">
+
+  <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Body Stats</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+    <div>
+      <div class="label">Weight (lbs)</div>
+      <input class="input" type="number" id="m-weight" placeholder="185.5" step="0.1" value="${existing.weight||''}">
+    </div>
+    <div>
+      <div class="label">Body Fat %</div>
+      <input class="input" type="number" id="m-bf" placeholder="15.0" step="0.1" value="${existing.bf||''}">
+    </div>
+  </div>
+
+  <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Measurements (inches)</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+    <div><div class="label">Chest</div><input class="input" type="number" id="m-chest" placeholder="42.0" step="0.25" value="${existing.chest||''}"></div>
+    <div><div class="label">Waist</div><input class="input" type="number" id="m-waist" placeholder="34.0" step="0.25" value="${existing.waist||''}"></div>
+    <div><div class="label">Hips</div><input class="input" type="number" id="m-hips" placeholder="40.0" step="0.25" value="${existing.hips||''}"></div>
+    <div><div class="label">Neck</div><input class="input" type="number" id="m-neck" placeholder="16.0" step="0.25" value="${existing.neck||''}"></div>
+    <div><div class="label">Left Arm</div><input class="input" type="number" id="m-arm" placeholder="15.0" step="0.25" value="${existing.arm||''}"></div>
+    <div><div class="label">Left Thigh</div><input class="input" type="number" id="m-thigh" placeholder="24.0" step="0.25" value="${existing.thigh||''}"></div>
+  </div>
   <button class="btn btn-primary btn-full" onclick="saveWeight()">Save</button>`;
 }
 
 function saveWeight() {
-  const w = parseFloat(document.getElementById('weight-input')?.value);
   const d = document.getElementById('weight-date')?.value || todayStr();
-  if (!w || w < 50 || w > 700) { toast('Enter a valid weight'); return; }
+  const get = id => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? null : v; };
+  const entry = {
+    date: d,
+    weight: get('m-weight'),
+    bf: get('m-bf'),
+    chest: get('m-chest'),
+    waist: get('m-waist'),
+    hips: get('m-hips'),
+    neck: get('m-neck'),
+    arm: get('m-arm'),
+    thigh: get('m-thigh'),
+  };
+  // Remove nulls
+  Object.keys(entry).forEach(k => entry[k] === null && delete entry[k]);
+  if (!entry.weight && !entry.chest && !entry.waist) { toast('Enter at least one measurement'); return; }
   state.weights = state.weights.filter(x=>x.date!==d);
-  state.weights.push({date:d, weight:w});
+  state.weights.push(entry);
   state.weights.sort((a,b)=>a.date.localeCompare(b.date));
   save(); closeModal(); render();
-  toast('✓ Weight logged!');
+  toast('✓ Stats logged!');
 }
 
 function renderWeeklySummaryModal() {
@@ -2012,6 +2081,36 @@ function renderPrepDetailModal(prep) {
 // ─── INIT ─────────────────────────────────────────────────────────
 load();
 render();
+
+// Auto-reconnect Google Drive silently on startup
+function tryAutoConnectDrive() {
+  const clientId = state.settings.googleClientId;
+  if (!clientId) return;
+  if (typeof google === 'undefined') return;
+  try {
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      prompt: '', // silent — don't show consent screen if already authorized
+      callback: async (resp) => {
+        if (resp.error) return; // silently fail
+        driveToken = resp.access_token;
+        driveReady = true;
+        state.settings.driveSynced = true;
+        await driveLoad();
+        render();
+      }
+    });
+    tokenClient.requestAccessToken({prompt: ''});
+  } catch(e) { console.warn('Auto Drive connect failed', e); }
+}
+
+// Wait for Google Identity Services to load, then auto-connect
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (state.settings.googleClientId) tryAutoConnectDrive();
+  }, 1500);
+});
 
 // Fix for meal prep tabs
 document.addEventListener('click', e => {
