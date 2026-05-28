@@ -427,7 +427,13 @@ async function driveLoad() {
 // ─── CLAUDE API ──────────────────────────────────────────────────
 function extractJSON(text) {
   // Strip markdown code blocks if present
-  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  text = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+  // Find the first JSON array or object anywhere in the response
+  const arrMatch = text.match(/\[[\s\S]*\]/);
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  if (arrMatch) return arrMatch[0];
+  if (objMatch) return objMatch[0];
+  return text;
 }
 
 async function callClaude(messages, system='') {
