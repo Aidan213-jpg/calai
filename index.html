@@ -789,7 +789,10 @@ function renderSettings() {
   </div>
 
   <div class="card" style="margin-bottom:12px">
-    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Daily Goals</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Daily Goals</div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('tdee')">🧮 Calculate</button>
+    </div>
     <div class="label">Calories</div>
     <input class="input" type="number" value="${s.calorieGoal||2000}" oninput="state.settings.calorieGoal=+this.value;save();render()" style="margin-bottom:10px">
     <div class="label">Protein (g)</div>
@@ -892,6 +895,10 @@ function openModal(type, data={}) {
     title.textContent = 'Add to Log';
     footer.style.display = 'none';
     body.innerHTML = renderServingModal(data);
+  } else if (type === 'tdee') {
+    title.textContent = '🧮 Goal Calculator';
+    footer.style.display = 'none';
+    body.innerHTML = renderTDEEModal();
   }
 }
 
@@ -1311,6 +1318,129 @@ function saveManualPrep() {
   state.preps.push(prep);
   save(); closeModal(); render();
   toast('✓ Meal prep saved!');
+}
+
+function renderTDEEModal() {
+  return `
+  <div class="label">Biological Sex</div>
+  <div class="flex gap-8" style="margin-bottom:12px">
+    <button class="btn btn-ghost" id="sex-male" onclick="selectSex('male')" style="flex:1">Male</button>
+    <button class="btn btn-ghost" id="sex-female" onclick="selectSex('female')" style="flex:1">Female</button>
+  </div>
+
+  <div class="label">Age</div>
+  <input class="input" type="number" id="tdee-age" placeholder="e.g. 25" min="10" max="100" style="margin-bottom:12px">
+
+  <div class="label">Height</div>
+  <div class="flex gap-8" style="margin-bottom:12px">
+    <div style="flex:1">
+      <input class="input" type="number" id="tdee-ft" placeholder="ft" min="3" max="8">
+    </div>
+    <div style="flex:1">
+      <input class="input" type="number" id="tdee-in" placeholder="in" min="0" max="11">
+    </div>
+  </div>
+
+  <div class="label">Weight (lbs)</div>
+  <input class="input" type="number" id="tdee-weight" placeholder="e.g. 185" style="margin-bottom:12px">
+
+  <div class="label">Activity Level</div>
+  <select class="input" id="tdee-activity" style="margin-bottom:12px">
+    <option value="1.2">Sedentary (desk job, little/no exercise)</option>
+    <option value="1.375">Lightly Active (1–3 days/week)</option>
+    <option value="1.55" selected>Moderately Active (3–5 days/week)</option>
+    <option value="1.725">Very Active (6–7 days/week)</option>
+    <option value="1.9">Extremely Active (physical job + daily training)</option>
+  </select>
+
+  <div class="label">Goal</div>
+  <select class="input" id="tdee-goal" style="margin-bottom:16px">
+    <option value="-500">Lose weight (−500 kcal/day)</option>
+    <option value="-250">Slow cut (−250 kcal/day)</option>
+    <option value="0" selected>Maintain weight</option>
+    <option value="250">Lean bulk (+250 kcal/day)</option>
+    <option value="500">Bulk (+500 kcal/day)</option>
+  </select>
+
+  <div id="tdee-result" style="display:none;background:var(--s2);border-radius:var(--r);padding:14px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Calculated Goals</div>
+    <div class="nutrient-grid">
+      <div class="nutrient-cell"><div class="nutrient-val" id="res-cal" style="color:var(--accent)">—</div><div class="nutrient-label">Calories</div></div>
+      <div class="nutrient-cell"><div class="nutrient-val" id="res-p" style="color:#60a5fa">—</div><div class="nutrient-label">Protein (g)</div></div>
+      <div class="nutrient-cell"><div class="nutrient-val" id="res-c" style="color:#fbbf24">—</div><div class="nutrient-label">Carbs (g)</div></div>
+      <div class="nutrient-cell"><div class="nutrient-val" id="res-f" style="color:#f87171">—</div><div class="nutrient-label">Fat (g)</div></div>
+    </div>
+    <div id="res-note" class="text-xs text-muted mt-8"></div>
+  </div>
+
+  <div class="flex gap-8">
+    <button class="btn btn-ghost" style="flex:1" onclick="calcTDEE()">Calculate</button>
+    <button class="btn btn-primary" style="flex:1" id="apply-btn" onclick="applyTDEE()" style="display:none">Apply Goals</button>
+  </div>`;
+}
+
+let _tdeeResults = null;
+let _selectedSex = 'male';
+
+function selectSex(sex) {
+  _selectedSex = sex;
+  document.getElementById('sex-male').className = 'btn ' + (sex==='male' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('sex-female').className = 'btn ' + (sex==='female' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('sex-male').style.flex = '1';
+  document.getElementById('sex-female').style.flex = '1';
+}
+
+function calcTDEE() {
+  const age = +document.getElementById('tdee-age')?.value;
+  const ft = +document.getElementById('tdee-ft')?.value || 0;
+  const inches = +document.getElementById('tdee-in')?.value || 0;
+  const weightLbs = +document.getElementById('tdee-weight')?.value;
+  const activity = +document.getElementById('tdee-activity')?.value;
+  const goalDelta = +document.getElementById('tdee-goal')?.value;
+
+  if (!age || !weightLbs || (!ft && !inches)) { toast('Fill in all fields'); return; }
+
+  // Convert to metric
+  const heightCm = (ft * 12 + inches) * 2.54;
+  const weightKg = weightLbs * 0.453592;
+
+  // Mifflin-St Jeor BMR
+  let bmr;
+  if (_selectedSex === 'male') {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+  } else {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+  }
+
+  const tdee = Math.round(bmr * activity);
+  const calories = Math.round(tdee + goalDelta);
+
+  // Macros: protein ~1g/lb bodyweight, fat ~25% cals, carbs fill the rest
+  const protein = Math.round(weightLbs * 1.0);
+  const fat = Math.round((calories * 0.25) / 9);
+  const carbs = Math.round((calories - (protein * 4) - (fat * 9)) / 4);
+
+  _tdeeResults = { calories, protein, carbs: Math.max(0, carbs), fat };
+
+  document.getElementById('res-cal').textContent = calories;
+  document.getElementById('res-p').textContent = protein + 'g';
+  document.getElementById('res-c').textContent = Math.max(0, carbs) + 'g';
+  document.getElementById('res-f').textContent = fat + 'g';
+  document.getElementById('res-note').textContent = `BMR: ${Math.round(bmr)} kcal · TDEE: ${tdee} kcal · Based on Mifflin-St Jeor formula`;
+  document.getElementById('tdee-result').style.display = 'block';
+  document.getElementById('apply-btn').style.display = '';
+}
+
+function applyTDEE() {
+  if (!_tdeeResults) return;
+  state.settings.calorieGoal = _tdeeResults.calories;
+  state.settings.proteinGoal = _tdeeResults.protein;
+  state.settings.carbGoal = _tdeeResults.carbs;
+  state.settings.fatGoal = _tdeeResults.fat;
+  save();
+  closeModal();
+  render();
+  toast('✓ Goals updated!');
 }
 
 function renderPrepDetailModal(prep) {
