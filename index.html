@@ -117,7 +117,7 @@ textarea.input{resize:none;line-height:1.5}
 
 /* CALORIE RING */
 .ring-wrap{display:flex;justify-content:center;margin:8px 0 16px}
-.ring-svg{transform:rotate(-90deg)}
+.ring-svg{}
 .ring-track{fill:none;stroke:var(--s3)}
 .ring-fill{fill:none;stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
 .ring-center{text-anchor:middle;dominant-baseline:middle}
@@ -593,14 +593,16 @@ function renderToday() {
   <div class="card">
     <div class="ring-wrap">
       <svg width="200" height="200" class="ring-svg">
-        <circle class="ring-track" cx="100" cy="100" r="${R}" stroke-width="14"/>
-        <circle class="ring-fill" cx="100" cy="100" r="${R}" stroke-width="14"
-          stroke="${ringColor}"
-          stroke-dasharray="${C}" stroke-dashoffset="${offset}"
-          style="transition:stroke-dashoffset .6s ease"/>
-        <text class="ring-cal" x="100" y="94" font-family="-apple-system,sans-serif" text-anchor="middle" dominant-baseline="middle" fill="var(--text)">${Math.round(totals.cal)}</text>
-        <text x="100" y="116" font-family="-apple-system,sans-serif" font-size="12" fill="var(--text2)" text-anchor="middle">of ${s.calorieGoal||2000} kcal</text>
-        <text x="100" y="133" font-family="-apple-system,sans-serif" font-size="11" fill="${pct>=1?'var(--orange)':'var(--green)'}" text-anchor="middle" font-weight="700">${pct>=1 ? '+'+Math.round(totals.cal-(s.calorieGoal||2000))+' over' : rem+' remaining'}</text>
+        <g transform="rotate(-90, 100, 100)">
+          <circle class="ring-track" cx="100" cy="100" r="${R}" stroke-width="14"/>
+          <circle class="ring-fill" cx="100" cy="100" r="${R}" stroke-width="14"
+            stroke="${ringColor}"
+            stroke-dasharray="${C}" stroke-dashoffset="${offset}"
+            style="transition:stroke-dashoffset .6s ease"/>
+        </g>
+        <text x="100" y="90" font-family="-apple-system,sans-serif" font-size="28" font-weight="800" fill="var(--text)" text-anchor="middle" dominant-baseline="middle">${Math.round(totals.cal)}</text>
+        <text x="100" y="114" font-family="-apple-system,sans-serif" font-size="12" fill="var(--text2)" text-anchor="middle">of ${s.calorieGoal||2000} kcal</text>
+        <text x="100" y="131" font-family="-apple-system,sans-serif" font-size="11" fill="${pct>=1?'var(--orange)':'var(--green)'}" text-anchor="middle" font-weight="700">${pct>=1 ? '+'+Math.round(totals.cal-(s.calorieGoal||2000))+' over' : rem+' remaining'}</text>
       </svg>
     </div>
     ${renderMacroBar('Protein', totals.protein, s.proteinGoal||150, '#60a5fa', 'g')}
