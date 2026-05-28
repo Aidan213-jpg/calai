@@ -837,9 +837,27 @@ function renderSettings() {
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
     </div>
     <div class="divider"></div>
+    <button class="btn btn-ghost btn-sm" onclick="clearAppCache()">🔄 Force Update App</button>
     <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear ALL data?')){localStorage.clear();location.reload()}">Clear All Data</button>
   </div>
   <div style="height:100px"></div>`;
+}
+
+async function clearAppCache() {
+  try {
+    // Unregister all service workers
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    // Delete all caches
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    toast('✓ Cache cleared — reloading...');
+    setTimeout(() => location.reload(true), 1000);
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
 }
 
 function exportData() {
